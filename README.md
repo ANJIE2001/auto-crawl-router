@@ -4,6 +4,9 @@
 
 一件事：**内容进来 → 存下来 → 洗干净 → 出成品。**
 
+> 👉 **只想看「怎么用、怎么维护」？看 [使用说明.md](使用说明.md)。**
+> 这份 README 偏开发和维护，技术细节更多。
+
 ---
 
 ## 五层骨架
@@ -101,8 +104,8 @@ python 03_加工/02_getnote/run.py cover "02_储存/02_getnote/blogger"
   落进本地 JSON；加工归档时**先取图池、图池没有就用它现下** —— 所以封面不会缺。
   想把图池一次性补满：`python 03_加工/02_getnote/run.py cover`。
 - **得到大脑的标题不能被 AI 改**。用 `save` 存链接时必须自己传 `--title`。
-- **凭证**：灵造的归 CLI 管（`~/.lingzao/config.json`）；得到大脑正文走浏览器授权，
-  封面要的开放平台 key 放在 `01_采集/02_getnote/config.local.json`（已 gitignore）。
+- **凭证**：灵造归 CLI 管（`~/.lingzao/config.json`，不用你操心）；得到大脑走开放平台 HTTP，
+  key 放在 `01_采集/02_getnote/config.local.json`（已 gitignore，不进仓库）。
 - **别在 Git Bash 里直接敲 `getnote`**。Git Bash 会命中 npm 生成的那个无扩展名 sh 脚本然后崩；
   用 CMD / PowerShell，或者干脆走 `collect.py`（它只认 `.cmd` / `.exe`）。
 

@@ -147,8 +147,11 @@ python 01_采集/02_getnote/collect.py details --topic YpDxK1MY --follow 1397022
 
 本项目**只抓外部内容**，不读这个账号里的私人笔记。
 
-**可以调**：`kbs` / `kb bloggers` / `kb blogger-contents` / `kb blogger-content` /
-`kb blogger-follow`（写）/ `kb lives` / `kb live` —— 以及上面那三条 HTTP 接口。
+**可以调**：就上面那三条 HTTP 接口（`bloggers` / `contents` / `details`）。
+
+CLI 那套（`kb bloggers` / `kb blogger-contents` / `kb blogger-content` / `kbs`）**本项目不用** ——
+HTTP 给的字段更多（详情 **12 个 vs 10 个**，而且**带封面**）。只有两件 HTTP 还没包的事才可能要 CLI：
+**订阅新博主**（`kb blogger-follow`）、**直播**（`kb lives`）。**用到再说，别默认走 CLI。**
 
 **不要调**：
 
