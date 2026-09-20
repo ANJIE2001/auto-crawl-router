@@ -343,7 +343,8 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
 
 - Python：`C:\Users\PC\.workbuddy\binaries\python\envs\default\Scripts\python.exe`（有 openpyxl）
 - 跑 Python 前设 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`
-- Bash 工具缺 coreutils（无 `head`/`ls`/`sed`），逻辑写成 `.py` 跑，结果落文件再读
+- Bash 工具缺 coreutils —— 已知没有 `head` / `ls` / `sed` / `cat` / `grep` / `cut` / `wc` / `dirname`，
+  逻辑写成 `.py` 跑，结果落文件再读；**别在任何命令里用这些**
 - 灵造 CLI：`%USERPROFILE%\.lingzao\bin\lingzao.cmd`，凭证在 `~/.lingzao/config.json`
 - 得到大脑 CLI：`D:\npm_global\getnote.cmd`（**别用** npm 那个无扩展名的，Git Bash 下会崩）
 - 灵造余额可直接从响应里读：顶层 `cost_credits` / `remaining_credits`
