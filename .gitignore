@@ -4,3 +4,16 @@
 
 # 密钥
 .env
+
+# AI 的工作流水账 —— 里面有私人笔记 ID、邮箱、积分余额等，不公开
+.workbuddy/memory/
+
+# 本地临时脚本
+.tmp_*
+
+# Python 编译缓存
+__pycache__/
+*.pyc
+
+# 采集层的本地配置覆盖（要往里面填 API Key 就填这儿，不进库）
+01_采集/*/config.local.json

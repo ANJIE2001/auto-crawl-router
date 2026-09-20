@@ -1,0 +1,11 @@
+# 仓库里统一用 LF 存 —— 保证换行符不会因操作系统而变
+* text=auto eol=lf
+
+# 二进制别当文本处理
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.webp binary
+*.gif binary
+*.xlsx binary
+*.mp4 binary

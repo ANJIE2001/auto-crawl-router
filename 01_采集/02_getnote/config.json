@@ -1,0 +1,24 @@
+{
+  "name": "得到大脑",
+
+  "_这是给你的": "这个源**全走开放平台 HTTP API，不用 CLI**，所以只要填 openapi 一段（真值写 config.local.json，那个不进 git）。其余字段是给程序看的，改之前先看同目录 README.md。不确定怎么填？先跑 doctor。",
+
+  "openapi": {
+    "_这个是干嘛的": "开放平台 HTTP API 的凭证。**这条链的所有动作都用它** —— 博主列表、内容列表、内容详情（逐字稿 + 封面）全走 HTTP。走一条通道少一处不一致：HTTP 的详情返回 12 个字段，CLI 只有 10 个而且没有封面。",
+    "_怎么填": "去得到大脑开放平台 → 创建应用 → 生成 API Key，会同时给你 Client ID 和 API Key。真值请填到 config.local.json（那个文件不进 git），别填这个文件。\n权限方面：只抓外部内容的话，勾 topic.read + topic.blogger.read 就够；要自动订阅新博主再加 topic.write。带 note. 前缀的一个都别勾（那是私人笔记）。",
+    "client_id": "",
+    "api_key": "",
+    "base_url": "https://openapi.biji.com/open/api/v1",
+    "_base_url_注意": "官方文档两处写法不一致（一处带 /open 一处不带），实测必须是带 /open 的这串。",
+    "_请求头_说明": "两个头缺一不可：Authorization: <api_key>（注意**不带** Bearer 前缀）+ X-Client-ID: <client_id>。",
+    "get_key_at": "https://openapi.biji.com"
+  },
+
+  "paid": false,
+  "store_dir": "02_储存/02_getnote",
+
+  "_project_root_说明": "项目根目录（02_储存 所在）。留空 = 自动推断，即本文件往上两级。只有整个文件夹被搬到别处时才需要填。",
+  "project_root": "",
+
+  "examples": "例子：\n  python 01_采集/02_getnote/collect.py doctor\n\n  # 1. 博主列表 → 拿 follow_id\n  python 01_采集/02_getnote/collect.py bloggers --topic YpDxK1MY\n\n  # 2. 内容列表 → 拿 post_id_alias（只想看清单时跑）\n  python 01_采集/02_getnote/collect.py contents --topic YpDxK1MY --follow 1397022\n\n  # 3. 逐条详情 → 逐字稿 + 封面（★ 主命令，跑完自动出表）\n  python 01_采集/02_getnote/collect.py details --topic YpDxK1MY --follow 1397022 --limit 20\n\n这个源不花钱，直接跑，不用加 --go。\n"
+}

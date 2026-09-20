@@ -1,0 +1,40 @@
+{
+  "name": "灵造",
+
+  "_这是给你的": "只用改下面 cli 和 auth 两块。其余字段是给程序看的，改之前先看同目录 README.md。不确定怎么填？先跑 doctor，它会告诉你下一步做啥。",
+
+  "cli": {
+    "path": "",
+    "env": "LINGZAO_CLI",
+    "candidates": [
+      "~/.lingzao/bin/lingzao.cmd",
+      "~/.lingzao/bin/lingzao.exe"
+    ],
+    "which": ["lingzao.cmd", "lingzao.exe"],
+    "hint": "没找到灵造 CLI。装它：\n  npx skills add https://assets-tian.midao.site/skills/lingzao --skill lingzao -g --copy\n装完跑一次 doctor 复查（详见同目录 README.md）"
+  },
+
+  "auth": {
+    "_怎么填": "对号入座：\n① 你以前配过灵造，`lingzao doctor` 显示正常 → 这里留空，什么都不用管。\n② 还没配过 → 去 https://lingzao.atian.vip 开通在线服务、拿到 API Key，再在终端跑一次 setup 把它存进本地（命令见 README「第一次使用」）。\n③ 想给这个项目单独用一个 Key → 别填这个文件，填同目录的 config.local.json（那个不进 git）。",
+    "api_key": "",
+    "env": "LINGZAO_API_KEY",
+    "extra_env": {},
+    "where": "~/.lingzao/config.json",
+    "get_key_at": "https://lingzao.atian.vip",
+    "hint": "灵造连不上，多半是 API Key 没配或过期。\n拿 Key / 看教程：https://lingzao.atian.vip\n配好之后重跑一次 doctor。"
+  },
+
+  "paid": true,
+  "store_dir": "02_储存/01_lingzao",
+
+  "_project_root_说明": "项目根目录（02_储存 所在）。留空 = 自动推断，即本文件往上两级。只有整个文件夹被搬到别处时才需要填。",
+  "project_root": "",
+
+  "probe": {
+    "label": "连接检查",
+    "argv": ["doctor"],
+    "expect": "正常"
+  },
+
+  "examples": "例子：\n  python 01_采集/01_lingzao/collect.py doctor\n  python 01_采集/01_lingzao/collect.py search --keyword \"AI写作\"\n  python 01_采集/01_lingzao/collect.py search --keyword \"AI写作\" --sort most_liked --go\n  python 01_采集/01_lingzao/collect.py profile --url \"https://www.xiaohongshu.com/user/profile/xxx\" --go\n\n这个源花钱。不加 --go 只预演，确认了再加。\n"
+}

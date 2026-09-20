@@ -29,16 +29,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import (
-    AdapterResult,
-    BaseAdapter,
-    NoteRecord,
-    extract_tags,
-    iso_to_cst,
-    load_json,
-    ms_to_cst,
-    safe_int,
-)
+from record import AdapterResult, BaseAdapter, NoteRecord
+from util import extract_tags, iso_to_cst, load_json, ms_to_cst, safe_int
 
 SOURCE = "lingzao"
 

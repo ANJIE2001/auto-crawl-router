@@ -1,17 +1,26 @@
 # -*- coding: utf-8 -*-
-"""抓回来的东西 → 能用的东西。
+"""灵造的加工入口。**只服务灵造** —— 不引用得到大脑那边任何一个文件。
 
-    # 搜来的笔记 → 统一字段（jsonl + csv）
-    python 03_加工/run.py search 02_储存/01_lingzao/search-notes/
+    # 搜来的笔记 → 统一字段（jsonl + csv + xlsx）
+    python 03_加工/01_lingzao/run.py search "02_储存/01_lingzao/search-notes/"
 
     # 博主全量笔记 → Excel
-    python 03_加工/run.py table 02_储存/01_lingzao/analyze-user-profile/
+    python 03_加工/01_lingzao/run.py table "02_储存/01_lingzao/analyze-user-profile/"
 
-    # 想全都要
-    python 03_加工/run.py search <路径> --format all
+    # 博主全量 → 一条内容一个文件夹
+    python 03_加工/01_lingzao/run.py bundle "02_储存/01_lingzao/analyze-user-profile/xxx.json"
+
+    # 补封面 → 04_产出/图片/（灵造的封面 URL 带签名，约 3 小时过期，越早跑越好）
+    python 03_加工/01_lingzao/run.py cover "02_储存/01_lingzao/analyze-user-profile/"
+
+    # 视频下载（占位：灵造拿不到视频直链，跑它只会告诉你现状）
+    python 03_加工/01_lingzao/run.py video "02_储存/01_lingzao/analyze-user-profile/"
 
 输入可以是文件，也可以是目录（目录会递归找 .json）。
 认命令靠 JSON 里的 `data.type`，不靠文件名。
+
+⚠️ **不调灵造 CLI、不花 credits。** `cover` 会联网下载图片（读的是本地 JSON 里
+   已经存好的 URL），但图片 CDN 不计费 —— 所以照样一分钱不花。
 """
 
 from __future__ import annotations
@@ -25,28 +34,21 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-from adapters import ad_lingzao  # noqa: E402
-from adapters.base import (  # noqa: E402
+import adapter as ad_lingzao  # noqa: E402
+from cover import build_parser as _build_cover_parser  # noqa: E402
+from export import build_excel  # noqa: E402
+from record import (  # noqa: E402
     FIELD_LABELS,
     NoteRecord,
-    expand_paths,
     flatten,
     write_csv,
     write_jsonl,
 )
+from util import expand_paths  # noqa: E402
+from video import build_parser as _build_video_parser  # noqa: E402
 
-ROOT = HERE.parent
+ROOT = HERE.parent.parent
 DEFAULT_OUT = ROOT / "04_产出" / "表格"
-
-# 列宽（按 FIELD_LABELS 的顺序给，不够的用默认）
-COL_WIDTHS = {
-    "序号": 5, "数据来源": 9, "采集命令": 17, "账号名称": 16, "账号ID": 24,
-    "标题": 38, "笔记ID": 22, "发布时间(UTC+8)": 19, "类型": 8, "xhs_note_type": 13,
-    "时长(秒)": 9, "点赞": 9, "收藏": 9, "评论": 8, "分享": 8, "互动总量": 10,
-    "收藏/点赞": 10, "协作标记": 9, "商品笔记": 9, "置顶": 6, "原始标签/描述": 44,
-    "标签": 24, "字幕状态": 10, "字幕是否截断": 11, "笔记链接": 40, "封面URL": 44,
-    "原始文件": 30,
-}
 
 
 # --------------------------------------------------------------------------
@@ -54,7 +56,7 @@ COL_WIDTHS = {
 # --------------------------------------------------------------------------
 
 def collect(inputs: list[str], only: str | None = None, quiet: bool = False):
-    """按 data.type 认领文件，返回 (records, meta 列表)。认不出的文件单独报出来。"""
+    """按 data.type 认领文件，返回 (records, results, skipped)。认不出的单独报出来。"""
     seen: set[str] = set()
     results = []
     skipped: list[tuple[str, str]] = []
@@ -100,74 +102,6 @@ def collect(inputs: list[str], only: str | None = None, quiet: bool = False):
 
 
 # --------------------------------------------------------------------------
-# Excel
-# --------------------------------------------------------------------------
-
-def build_excel(records: list[NoteRecord], out_path: Path, title: str = ""):
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        sys.exit("缺 openpyxl。装一下：pip install openpyxl")
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "统一数据"
-    labels = FIELD_LABELS
-    ncol = len(labels)
-
-    title_font = Font(name="微软雅黑", size=14, bold=True)
-    header_font = Font(name="微软雅黑", size=11, bold=True)
-    data_font = Font(name="微软雅黑", size=10)
-    border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                    top=Side(style="thin"), bottom=Side(style="thin"))
-    header_fill = PatternFill("solid", start_color="D9E1F2", end_color="D9E1F2")
-    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    left = Alignment(horizontal="left", vertical="center", wrap_text=True)
-
-    # 第 1 行标题
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncol)
-    ws.cell(1, 1, title or f"统一数据表｜{len(records)} 条").font = title_font
-    ws.cell(1, 1).alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 34
-    ws.row_dimensions[2].height = 6
-
-    # 第 3 行表头
-    for c, name in enumerate(labels, 1):
-        cell = ws.cell(3, c, name)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
-        cell.alignment = center
-    ws.row_dimensions[3].height = 26
-
-    # 数据
-    for i, rec in enumerate(records, 1):
-        row = i + 3
-        values = rec.to_row(i)
-        for c, name in enumerate(labels, 1):
-            cell = ws.cell(row, c, values[name])
-            cell.font = data_font
-            cell.border = border
-            cell.alignment = left if name in ("标题", "原始标签/描述", "标签",
-                                              "笔记链接", "封面URL", "原始文件") else center
-            if name == "收藏/点赞" and isinstance(values[name], (int, float)):
-                cell.number_format = "0.0000"
-        ws.row_dimensions[row].height = 22
-
-    for c, name in enumerate(labels, 1):
-        ws.column_dimensions[get_column_letter(c)].width = COL_WIDTHS.get(name, 14)
-
-    ws.freeze_panes = "A4"
-    ws.auto_filter.ref = f"A3:{get_column_letter(ncol)}{3 + len(records)}"
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(out_path)
-    return out_path
-
-
-# --------------------------------------------------------------------------
 # 子命令
 # --------------------------------------------------------------------------
 
@@ -179,7 +113,7 @@ def cmd_search(args):
 
     # 按互动总量排序，爆款先看
     if not args.no_sort:
-        records.sort(key=lambda r: r.interactions_total, reverse=True)
+        records.sort(key=lambda r: (r.interactions_total or 0), reverse=True)
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     query = next((r for r in [x.meta.get("query") for x in _results] if r), "")
@@ -224,12 +158,48 @@ def cmd_table(args):
     return 0
 
 
+def cmd_bundle(args):
+    """博主全量 → 一条内容一个文件夹，外加一份索引表。"""
+    from bundle import export_bundle
+
+    files = expand_paths(args.input, (".json", ".xlsx", ".xls"))
+    if len(files) != 1:
+        print(f"bundle 一次只处理一个博主，这次数到 {len(files)} 个文件。"
+              "指定具体文件，或者换一个只含单个博主的目录。")
+        return 1
+
+    try:
+        r = export_bundle(files[0], args.subtitles, covers=not args.no_cover)
+    except Exception as e:
+        print(f"导出失败：{e}")
+        return 1
+
+    pack = r["pack_dir"]
+    st = r["stats"]
+    build_excel(r["records"], pack / "_索引.xlsx",
+                f"笔记原始数据表｜{r['author']}｜{len(r['records'])} 条")
+
+    print(f"\n博主    {r['author']}（{r['author_id']}）")
+    print(f"目录    {pack}")
+    print(f"  条数          {st['条数']}")
+    print(f"  逐字稿        全文 {st['逐字稿全文']} ｜ 只有截断预览 {st['逐字稿截断']}")
+    print(f"  封面          成功 {st['封面成功']}"
+          f"（其中图池 {st['封面来自图池']}）｜ 失败 {st['封面失败']}")
+    print(f"  文件夹        新建 {st['新建目录']} ｜ 复用旧的 {st['复用旧目录']}")
+    if r["collection"]:
+        print(f"  合集          {r['collection']}")
+    for err in r["cover_errors"]:
+        print(f"  ⚠ 封面：{err}")
+    print(f"索引表  {pack / '_索引.xlsx'}")
+    return 0
+
+
 # --------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
         prog="run.py",
-        description="把 02_储存 里的原始数据，变成 04_产出 里能用的东西。",
+        description="灵造：把 02_储存/01_lingzao 里的原始数据，变成 04_产出 里能用的东西。",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -246,6 +216,17 @@ def main():
     pt.add_argument("--out", help="输出 xlsx 路径")
     pt.add_argument("--no-sort", action="store_true", help="不按发布时间排序")
     pt.set_defaults(func=cmd_table)
+
+    pb = sub.add_parser("bundle", help="analyze-user-profile → 一条内容一个文件夹")
+    pb.add_argument("input", nargs="+", help="profile JSON，或已导出的成品表 xlsx")
+    pb.add_argument("--subtitles", help="逐字稿合集 md（不给就按博主名自动找）")
+    pb.add_argument("--no-cover", action="store_true", help="不下载封面")
+    pb.set_defaults(func=cmd_bundle)
+
+    # 下载类动作：封面、视频**各自一个文件** —— 两边规则不一样（一个临时链接、
+    # 一个永久链接），所以按源分开写，这儿只是把它们的命令行接进来。
+    _build_cover_parser(sub)
+    _build_video_parser(sub)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

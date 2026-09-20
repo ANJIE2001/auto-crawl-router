@@ -1,39 +1,51 @@
 {
   "version": "1.0",
-  "updated": "2026-09-19",
+  "updated": "2026-09-20",
+
+  "_这个文件是什么": "来源清单（手写，备查）。**目前全项目没有代码在读它** —— 它是给人看的目录，不是可执行路由。用户 2026-09-19 决定「先放一边，文件别删」。",
+
   "fallback_route": "fallback",
+
   "routes": {
     "batch_search": {
       "source": "lingzao",
       "command": "search-notes",
       "store_dir": "02_储存/01_lingzao/search-notes",
-      "cost": "20 credits/次",
-      "output": ["json", "md"],
-      "note": "按关键词批量搜笔记，出的是列表，不下钻单条详情"
+      "cost": "20 积分/次",
+      "output": ["json"],
+      "note": "按关键词批量搜笔记，出的是列表，不下钻单条详情；完整字幕在顶层 artifacts.subtitle_markdown.url（JSON 里那份是截断版），采集时已自动下"
     },
     "deep_profile": {
       "source": "lingzao",
       "command": "analyze-user-profile",
       "store_dir": "02_储存/01_lingzao/analyze-user-profile",
-      "cost": "100 credits/博主",
-      "output": ["json", "md"],
-      "note": "单博主全量笔记 + 字幕。字幕是截断预览，完整字幕在 artifacts.subtitle_markdown"
+      "cost": "按条数分档：1–20 条 50；21–40 条 100",
+      "output": ["json"],
+      "note": "单博主全量笔记 + 字幕。⚠️ JSON 里那份字幕是**截断版**（实测卡 1203 字），全文在顶层 artifacts.subtitle_markdown.url —— 采集时已自动下成 *_完整字幕合集.md（免费）。⚠️ 封面 URL 只有约 3 小时寿命，采集时会立刻抢一遍，漏了要趁窗口内用 03_加工/01_lingzao/run.py cover 补"
     },
     "subscription": {
       "source": "getnote",
-      "command": "getnote-kb / getnote-note",
-      "store_dir": "02_储存/02_getnote",
-      "cost": "Pro 会员 299/年",
-      "output": ["md"],
-      "note": "追踪指定博主更新，自动出逐字稿 + 原链接"
+      "command": "HTTP /resource/knowledge/bloggers · /blogger/contents · /blogger/content/detail",
+      "store_dir": "02_储存/02_getnote/blogger",
+      "cost": "0（会员制，读接口不额外扣费）",
+      "output": ["json"],
+      "note": "看订阅博主的逐字稿（post_media_text）。2026-09-20 起得到大脑采集**全走开放平台 HTTP API**，不再用 CLI。详情一次给齐：逐字稿 + 封面(post_cover) + 原链接 + 发布时间。封面图先取图池、图池没有就现下（链接不带签名、不过期）"
+    },
+    "link_note": {
+      "source": "getnote",
+      "command": "save <链接>",
+      "store_dir": "02_储存/02_getnote/link",
+      "cost": "0（会员制）",
+      "output": ["json"],
+      "note": "把链接转成结构化笔记（任意网页，不限小红书）。**是写操作**，必须带 --title 显式传原帖标题，否则得到大脑会用 AI 改掉"
     },
     "collection": {
       "source": "getnote",
-      "command": "getnote-note",
-      "store_dir": "02_储存/02_getnote",
-      "cost": "Pro 会员 299/年",
-      "output": ["md"],
-      "note": "手动收进知识库的内容归档"
+      "command": "notes / note / search / tag",
+      "store_dir": "（不用）",
+      "cost": "—",
+      "output": ["json"],
+      "note": "⛔ **本项目禁用。** 这一组碰的是私人笔记，用户划了边界：只抓外部内容。列在这儿只为说明它为什么不能用"
     },
     "fallback": {
       "source": "browser",
@@ -41,40 +53,42 @@
       "store_dir": "02_储存/03_browser",
       "cost": "0（自备 Chrome）",
       "output": ["json"],
-      "note": "灵造、得到大脑都不可用时的兜底。走 __INITIAL_STATE__，比 DOM 选择器准"
+      "note": "灵造、得到大脑都不可用时的兜底，走 __INITIAL_STATE__ 比 DOM 选择器准。**还没实现**"
     }
   },
+
   "sources": {
     "lingzao": {
       "label": "灵造",
       "kind": "paid_api",
-      "adapter": "03_加工/adapters/ad_lingzao.py"
+      "where": "03_加工/01_lingzao/"
     },
     "getnote": {
       "label": "得到大脑",
       "kind": "paid_subscription",
-      "adapter": "03_加工/adapters/ad_getnote.py（待写）"
+      "where": "03_加工/02_getnote/"
     },
     "browser": {
       "label": "浏览器 CDP",
       "kind": "local",
-      "adapter": "03_加工/adapters/ad_browser.py（待写）",
+      "where": "（还没实现）",
       "legacy_scripts": [
-        "03_加工/scripts/process_browser_notes.py",
-        "03_加工/scripts/build_notes_excel.py"
+        "03_加工/01_lingzao/scripts/process_browser_notes.py",
+        "03_加工/01_lingzao/scripts/build_notes_excel.py"
       ]
     },
     "api_x": {
       "label": "第三方裸 API",
       "kind": "reserved",
-      "adapter": "03_加工/adapters/ad_api_x.py（待写）",
-      "note": "预留位。目前还没选到合适的服务商"
+      "where": "（预留位，还没选到合适的服务商）"
     }
   },
+
   "legacy_scripts": {
+    "_说明": "都在 03_加工/01_lingzao/scripts/ 下。它们是灵造那条链的旧一代，**别照着写新代码**（当前实现在 03_加工/01_lingzao/ 那几个 .py）",
     "merge_rounds.py": "多轮 CDP 搜索结果合并分析（一次性脚本，留作参考）",
     "extract_profile_notes.py": "profile JSON → 逐条笔记 .md",
-    "download_covers.py": "批量下载封面并回写 md 字段",
+    "download_covers.py": "批量下载封面并回写 md 字段（**已被 run.py cover 取代**）",
     "process_browser_notes.py": "浏览器 CDP JSON → 逐条笔记 .md",
     "build_notes_excel.py": "profile/浏览器 JSON → 24 字段 Excel 模板"
   }
