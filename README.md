@@ -64,6 +64,9 @@
 # 第 0 步：查环境 —— 灵造装了没、得到大脑的 key 配了没。缺什么它会说怎么装
 python 05_技能/prereq_check.py
 
+# 第 0.5 步：配凭证（key 存你自己电脑，项目里不留）
+python 05_技能/set_key.py getnote --client-id cli_xxx --api-key gk_live_xxx
+
 # 采集层不用装任何东西（只用 Python 标准库）；加工层要 openpyxl
 pip install openpyxl
 
@@ -116,9 +119,12 @@ python 03_加工/02_getnote/run.py cover "02_储存/02_getnote/blogger"
   落进本地 JSON；加工归档时**先取图池、图池没有就用它现下** —— 所以封面不会缺。
   想把图池一次性补满：`python 03_加工/02_getnote/run.py cover`。
 - **得到大脑的标题不能被 AI 改**。用 `save` 存链接时必须自己传 `--title`。
-- **凭证**：灵造归 CLI 管（`~/.lingzao/config.json`，不用你操心）；得到大脑走开放平台 HTTP，
-  key 放在**项目根 `.env`** —— 已 gitignore，不进仓库，**也不会进打包**。
-  没有 `.env`？照 `.env.example` 复制一份再填。打包发人前看 `05_技能/打包排除清单.md`。
+- **★ 凭证只存你自己的电脑，项目里一个 key 都不留**。灵造归 CLI 管
+  （`~/.lingzao/config.json`，不用你操心）；得到大脑存成**用户环境变量**
+  （底层就是注册表 `HKCU\Environment`）—— 这样**打包发人，包里也没有钥匙**。
+  设凭证：`python 05_技能/set_key.py getnote --client-id cli_xxx --api-key gk_live_xxx`
+  看当前存在哪：`python 05_技能/set_key.py`（不加参数就是查看）。
+  打包前照 `05_技能/打包排除清单.md` 再对一遍。
 - **别在 Git Bash 里直接敲 `getnote`**。Git Bash 会命中 npm 生成的那个无扩展名 sh 脚本然后崩；
   用 CMD / PowerShell，或者干脆走 `collect.py`（它只认 `.cmd` / `.exe`）。
 

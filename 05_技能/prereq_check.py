@@ -13,9 +13,14 @@
 
 **缺什么就告诉你装什么、怎么装、装完落在哪个路径。** 三样齐了才谈得上抓数据。
 
+★ **凭证只存在你自己的电脑里**（环境变量 / 注册表），项目文件夹里一个 key 都不留 ——
+这样把项目打包发人，包里也没有钥匙。设凭证用：
+
+    python 05_技能/set_key.py getnote --client-id cli_xxx --api-key gk_live_xxx
+
 和 selfcheck.py 的分工：
     selfcheck.py  —— 项目「体检」：数据对不对、命名乱没乱、有没有密钥泄露
-    prereq_check  —— 环境「上岗检查」：软件装了没、凭证配了没
+    prereq_check  —— 环境「上岗检查」：软件装了没、凭证配了没、配在哪
 """
 from __future__ import annotations
 
@@ -80,6 +85,59 @@ def read_env(path):
         if v:
             out[k.strip()] = v
     return out
+
+
+REG_ROOT = r"Software\AutoCrawlRouter"
+
+
+def _reg_env(name):
+    """直接读注册表里的用户环境变量（HKCU\\Environment）—— 绕开进程缓存。"""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, name)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def _reg_app(section, field):
+    """读独立注册表项 HKCU\\Software\\AutoCrawlRouter\\<section>\\<field>。"""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"{REG_ROOT}\{section}",
+                            0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, field)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def resolve_cred(env_name, section, field):
+    """
+    按优先级找凭证，和两个 collect.py 用的是同一套顺序：
+
+        ① 进程环境变量 → ② 注册表里的用户环境变量 → ③ 独立注册表项 → ④ 项目根 .env
+
+    ①②③ 都在**你自己的电脑里**，打包带不走；.env 排最后只作兼容。
+    """
+    v = (os.environ.get(env_name) or "").strip()
+    if v:
+        return v, f"环境变量 {env_name}"
+    v = _reg_env(env_name)
+    if v:
+        return v, f"用户环境变量 {env_name}（注册表）"
+    v = _reg_app(section, field)
+    if v:
+        return v, f"注册表 HKCU\\{REG_ROOT}\\{section}"
+    v = (read_env(ROOT / ".env").get(env_name) or "").strip()
+    if v:
+        return v, "项目根 .env ⚠️ 建议搬进环境变量"
+    return "", ""
 
 
 def run(cmd, timeout=90, cwd=None):
@@ -242,8 +300,11 @@ def check_lingzao():
         print("      第 3 步 · 拿 API Key（做选题/标题/封面可以先不配，查公开内容才要）")
         print(f"        打开 {LINGZAO_SITE} → 按教程开通积分 → 复制 API Key")
         print()
-        print("      第 4 步 · 存凭证")
-        print(f'        bash "<skill目录>/scripts/setup.sh" --api-key "lgz_xxx" --base-url "{LINGZAO_SITE}"')
+        print("      第 4 步 · 存凭证（二选一）")
+        print(f'        · 给 CLI 自己用：bash "<skill目录>/scripts/setup.sh" --api-key "lgz_xxx" '
+              f'--base-url "{LINGZAO_SITE}"')
+        print("        · 或者只给本项目用（存你自己电脑，不影响 CLI）：")
+        print('          python 05_技能/set_key.py lingzao --api-key "lgz_xxx"')
         print()
         print(f"      装完认这两个地方：")
         print(f"        CLI   {HOME / '.lingzao' / 'bin' / 'lingzao.cmd'}")
@@ -258,38 +319,34 @@ def check_lingzao():
 
 def check_getnote():
     head("3/3", "得到大脑", "抓抖音 / 任意网页，会员制 —— 不花额外钱的那个")
-    envp = ROOT / ".env"
-    env = read_env(envp)
-    cid = env.get("GETNOTE_CLIENT_ID", "")
-    key = env.get("GETNOTE_API_KEY", "")
-    base = (env.get("GETNOTE_BASE_URL") or "https://openapi.biji.com/open/api/v1").rstrip("/")
 
-    if envp.is_file():
-        line("凭证文件", OK, str(envp))
-    else:
-        line("凭证文件", NO, f"{envp} 不存在")
-    line("Client ID", OK if cid else NO, f"{cid[:8]}…" if cid else "没填")
-    line("API Key", OK if key else NO, f"{key[:12]}…（共 {len(key)} 位）" if key else "没填")
-    line("接口地址", OK if base else NO, base)
+    cid, src_cid = resolve_cred("GETNOTE_CLIENT_ID", "getnote", "client_id")
+    key, src_key = resolve_cred("GETNOTE_API_KEY", "getnote", "api_key")
+    base, _ = resolve_cred("GETNOTE_BASE_URL", "getnote", "base_url")
+    base = (base or "https://openapi.biji.com/open/api/v1").rstrip("/")
+
+    line("Client ID", OK if cid else NO, f"{cid[:8]}…　← {src_cid}" if cid else "没找到")
+    line("API Key", OK if key else NO,
+         f"{key[:12]}…（{len(key)} 位）　← {src_key}" if key else "没找到")
+    line("接口地址", OK, base)
 
     if not (cid and key):
         print()
-        print("    得到大脑怎么配 —— 照着做：")
+        print("    得到大脑怎么配 —— 两步：")
         print()
-        print("      第 1 步 · 建环境文件")
-        print(f"        把 {ROOT / '.env.example'} 复制成 {ROOT / '.env'}")
-        print()
-        print("      第 2 步 · 拿凭证")
+        print("      第 1 步 · 拿凭证")
         print(f"        打开 {GETNOTE_SITE} → 创建应用 → 生成 API Key")
         print("        会同时给你 Client ID（cli_ 开头）和 API Key（gk_live_ 开头）")
         print("        权限只勾 topic.read + topic.blogger.read —— 带 note. 前缀的一律别勾")
         print("        （那是私人笔记，项目不碰）")
         print()
-        print("      第 3 步 · 填进 .env")
-        print("        GETNOTE_CLIENT_ID=cli_xxxx")
-        print("        GETNOTE_API_KEY=gk_live_xxxx.xxxx")
+        print("      第 2 步 · 存进你自己的电脑（项目里不留 key，打包才带不走）")
+        print("        python 05_技能/set_key.py getnote \\")
+        print("            --client-id cli_xxxx --api-key gk_live_xxxx.xxxx")
         print()
-        print(f"      填完跑一次验证：python 01_采集/02_getnote/collect.py doctor")
+        print("        默认存成用户环境变量（底层写在注册表 HKCU\\Environment）。")
+        print("        想藏得更深？加 --scope registry，存进")
+        print(f"        HKCU\\{REG_ROOT}\\getnote —— 不出现在环境变量列表里。")
         return False
 
     # 连通（list 接口不花钱）
@@ -347,6 +404,9 @@ def main() -> int:
     print()
     if py_ok and lz_ok and gn_ok:
         print("三样齐了，可以开始抓数据。")
+        print()
+        print("  凭证都在你自己电脑里（环境变量 / 注册表），项目文件夹里没有 key")
+        print("  —— 打包发人不会泄露。要看存在哪：python 05_技能/set_key.py")
         print()
         print("  抓小红书（花钱，先不加 --go 只预演）：")
         print('    python 01_采集/01_lingzao/collect.py search --keyword "AI写作"')

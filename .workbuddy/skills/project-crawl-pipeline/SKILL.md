@@ -34,6 +34,7 @@ python 05_技能/selfcheck.py --quiet    # 只看「错误」和「警告」
 | 你接到什么 | 先做/先读 |
 |---|---|
 | **第一次用 / 换了电脑 / 报「凭证没填」** | `python 05_技能/prereq_check.py` —— 它会告诉你缺什么、怎么装、装哪 |
+| **要配或换凭证** | `python 05_技能/set_key.py`（不加参数 = 看现状）。**别往项目文件里填 key** |
 | **任何抓取/加工任务** | 先跑 `05_技能/selfcheck.py` |
 | **要加一个新渠道（第 3 个源）** | `05_技能/新增渠道规范.md` —— 九步总览、骨架、模板、六个必须有、八个文件职责、验收清单 |
 | **要试一个新平台（还没接）** | `05_技能/新源测试流程.md` —— 测五件事、四级测试、判定表、记录表 |
@@ -56,9 +57,18 @@ python 05_技能/selfcheck.py --quiet    # 只看「错误」和「警告」
 拷到别处也能独立跑。卸载一个源 = 删掉那个文件夹。
 代价：两份 `collect.py` 的工具代码重复，改 bug 要改两遍（**用户已拍板接受这个代价**）。
 
-★ **凭证不在源文件夹里 —— 在项目根 `.env`**（2026-09-21 起）。那里不进 git，也不会被拖进打包。
-三层优先：`config.json`（进 git，留空） < `config.local.json`（空壳路标） < **`.env`（说了算）**。
-缺凭证时 `collect.py doctor` 会直接说打开哪个文件。打包排除清单见 `05_技能/打包排除清单.md`。
+★ **凭证存在用户自己的电脑上，项目里一个 key 都不留**（2026-09-21 用户拍板）。
+读取顺序：
+
+```
+① 进程环境变量  →  ② 注册表里的用户环境变量  →  ③ 独立注册表项  →  ④ 项目根 .env（兜底兼容）
+                    HKCU\Environment              HKCU\Software\AutoCrawlRouter\<源名>
+```
+
+`config.json` / `config.local.json` 一律留空，只放说明。设凭证：`python 05_技能/set_key.py`。
+② 那一层是为了「刚设完还没重启」—— Windows 的环境变量不会自动进已开着的进程，读注册表就绕过去了。
+缺凭证时 `collect.py doctor` 会直接告诉你跑哪条命令；它也会显示**凭证是从哪读到的**。
+打包排除清单见 `05_技能/打包排除清单.md`。
 
 ```
 01_采集  →  02_储存  →  03_加工  →  04_产出
@@ -325,7 +335,7 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
 |---|---|
 | **加了一个源** | `05_技能/新增渠道规范.md`（照验收清单逐条打勾）、根 `README.md`、`使用说明.md`、`05_技能/目录说明.md` |
 | **命令路径** | 根 `README.md`、`01_采集/README.md`、各源 `README.md`、`04_产出/README.md`、`使用说明.md` |
-| **凭证位置 / 环境文件** | 根 `README.md`、`使用说明.md`、`01_采集/README.md`、各源 `README.md`、`05_技能/目录说明.md`、`新增渠道规范.md`、`打包排除清单.md`、两个 `collect.py` 的 doctor 提示语、本技能 |
+| **凭证读取顺序** | 根 `README.md`、`使用说明.md`、`01_采集/README.md`、各源 `README.md`、`05_技能/目录说明.md`、`新增渠道规范.md`、`打包排除清单.md`、`set_key.py` 的说明、两个 `collect.py` 的 doctor 提示语、本技能 |
 | **价目** | 灵造 `README.md`、**`01_采集/01_lingzao/collect.py` 的 `cost` 字段**、根 `README.md` |
 | **产出结构** | `04_产出/README.md`、`03_加工/columns.md`、相关 `bundle.py` 的 docstring |
 | **列名** | `03_加工/columns.md` + 两个 `record.py`（而且**历史表要重跑**） |
@@ -354,8 +364,9 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
 - **别调得到大脑的私人笔记命令** —— 用户划了边界（见「外抓链路」）
 - **别让 AI 定标题** —— `save` 会重写，必须自己传 `--title`
 - **别把两个源的封面逻辑混着写** —— 一个临时链接要抢、一个永久链接随时补
-- **别把真凭证写进任何进 git 的文件** —— 只写项目根 `.env`（`config.json` 系列一律留空）。
-  打包发人前照 `05_技能/打包排除清单.md` 对一遍 —— **`.gitignore` 只管 git，管不了压缩包**
+- **别把真凭证写进项目里任何文件** —— 存用户本机（`python 05_技能/set_key.py`）。
+  `config.json` / `config.local.json` / `.env` 一律留空。项目是**要打包发人**的，
+  而 **`.gitignore` 只管 git，管不了压缩包**
 - **别漏掉 `.env` 的密钥扫描** —— 它**没有扩展名**，扫描白名单容易把它漏过去
   （`selfcheck.py` 2026-09-21 已修，改扫描逻辑时注意别改回去）
 
@@ -382,6 +393,9 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
     - 合并完记得跑 `check-version` 确认显示「已是最新」
 - 得到大脑 CLI：`D:\npm_global\getnote.cmd`（**别用** npm 那个无扩展名的，Git Bash 下会崩）；
   但**本项目已改走 HTTP API，用不到它**
+- ★ 凭证存哪：用户环境变量 `GETNOTE_*` / `LINGZAO_*`（注册表 `HKCU\Environment`），
+  或独立注册表项 `HKCU\Software\AutoCrawlRouter\<源名>`。**项目里不存 key**（要打包发人）。
+  设/查：`python 05_技能/set_key.py`（不加参数 = 看当前从哪读到的）
 - 灵造余额可直接从响应里读：顶层 `cost_credits` / `remaining_credits`
 - ⚠️ **带 `&` 的链接必须走 exe + 数组传参**：走 `.cmd` 或拼字符串，cmd.exe 会把 `&`
   当命令分隔符切掉。灵造的 `collect.py` 已修（`_quote_for_cmd()`），得到大脑已改走 HTTP 不涉及

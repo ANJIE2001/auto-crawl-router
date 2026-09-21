@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -49,6 +50,9 @@ if sys.platform == "win32":
 HERE = Path(__file__).resolve().parent
 DEFAULT_BASE = "https://openapi.biji.com/open/api/v1"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+REG_ROOT = r"Software\AutoCrawlRouter"      # 独立注册表项的根
+REG_SECTION = "getnote"
+CRED_SOURCE: dict[str, str] = {}             # 凭证来源，给 doctor 显示用
 
 
 # ---------------------------------------------------------------- 配置
@@ -87,29 +91,92 @@ def env_file_path():
     return HERE.parent.parent / ".env"
 
 
+def _reg_env(name):
+    """
+    直接读注册表里的**用户环境变量**（HKCU\\Environment）。
+
+    为什么绕这一下：Windows 设完环境变量不会自动进已经开着的进程，
+    直接读注册表就能「设完立刻用」，不用重开窗口。
+    """
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, name)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def _reg_app(field):
+    """读独立注册表项 HKCU\\Software\\AutoCrawlRouter\\getnote\\<field>。"""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"{REG_ROOT}\{REG_SECTION}",
+                            0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, field)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def resolve_cred(env_name, reg_field):
+    """
+    按优先级找一个凭证值，返回 (值, 来源说明)。顺序：
+
+        ① 进程环境变量
+        ② 注册表里的用户环境变量（刚设完、还没刷新的情况）
+        ③ 独立注册表项 HKCU\\Software\\AutoCrawlRouter\\getnote
+        ④ 项目根 .env
+
+    ★ **前三项都在你自己的电脑里，打包带走不了** —— 这就是这个顺序存在的理由。
+      .env 排最后只作兼容。要设凭证：`python 05_技能/set_key.py`
+    """
+    v = (os.environ.get(env_name) or "").strip()
+    if v:
+        return v, f"环境变量 {env_name}"
+    v = _reg_env(env_name)
+    if v:
+        return v, f"用户环境变量 {env_name}"
+    v = _reg_app(reg_field)
+    if v:
+        return v, f"注册表 HKCU\\{REG_ROOT}\\{REG_SECTION}"
+    v = (read_env_file(env_file_path()).get(env_name) or "").strip()
+    if v:
+        return v, "项目根 .env（建议搬进环境变量，见 05_技能/set_key.py）"
+    return "", ""
+
+
 def load_config():
     """
-    配置三层，后者压前者：
+    配置来源，越靠前越优先：
 
-        ① 同目录 config.json        —— 结构 + 说明，进 git，真值留空
-        ② 同目录 config.local.json  —— 老位置，现在只剩空壳（仍兼容，不报错）
-        ③ 项目根 .env               —— ★ 真凭证的家，不进 git、不进安装包
+        ① 进程环境变量           ┐
+        ② 注册表里的用户环境变量  ├ ★ 凭证的家 —— 只在你电脑里，打包带不走
+        ③ 独立注册表项           ┘
+        ④ 项目根 .env            ← 兼容保留；真值不该放这儿
+        ⑤ 同目录 config.json / config.local.json（结构 + 说明，进 git）
 
-    凭证只该写在第 ③ 层。前两层填了也不报错，但 .env 说了算。
+    设凭证：`python 05_技能/set_key.py`
     """
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     local = HERE / "config.local.json"
     if local.is_file():
         _overlay(cfg, json.loads(local.read_text(encoding="utf-8")))
 
-    env = read_env_file(env_file_path())
-    if env:
-        o = cfg.setdefault("openapi", {})
-        for env_key, cfg_key in (("GETNOTE_CLIENT_ID", "client_id"),
-                                 ("GETNOTE_API_KEY", "api_key"),
-                                 ("GETNOTE_BASE_URL", "base_url")):
-            if env.get(env_key):
-                o[cfg_key] = env[env_key]
+    o = cfg.setdefault("openapi", {})
+    for env_name, reg_field, cfg_key in (
+        ("GETNOTE_CLIENT_ID", "client_id", "client_id"),
+        ("GETNOTE_API_KEY", "api_key", "api_key"),
+        ("GETNOTE_BASE_URL", "base_url", "base_url"),
+    ):
+        val, src = resolve_cred(env_name, reg_field)
+        if val:
+            o[cfg_key] = val
+            CRED_SOURCE[cfg_key] = src
     return cfg
 
 
@@ -127,12 +194,11 @@ def openapi_creds(cfg):
     if not cid or not key:
         raise SystemExit(
             "缺开放平台凭证 —— 这个源全走 HTTP API，两个值必须配好。\n"
-            f"  打开  {env_file_path()}\n"
-            "  填这两行（真值只放这里，别写进 config.json）：\n"
-            "      GETNOTE_CLIENT_ID=cli_ 开头\n"
-            "      GETNOTE_API_KEY=gk_live_ 开头\n"
+            "  存进**你自己的电脑**（项目里不留 key，打包才带不走）：\n"
+            "      python 05_技能/set_key.py getnote "
+            "--client-id cli_xxx --api-key gk_live_xxx\n"
             f"  怎么拿：{o.get('get_key_at') or '得到大脑开放平台 → 创建应用 → 生成 API Key'}\n"
-            "  没有 .env？照 .env.example 复制一份再填。"
+            "  也可以临时写项目根 .env —— 但别长期放那儿，打包会带走。"
         )
     base = str(o.get("base_url") or DEFAULT_BASE).rstrip("/")
     return base, cid, key
@@ -212,15 +278,8 @@ def cmd_doctor(cfg, actions):
     print(f"{name} · 自检")
     print("=" * 56)
 
-    envp = env_file_path()
-    has_env = bool(read_env_file(envp))
     has_local = (HERE / "config.local.json").is_file()
-    src = f"{HERE.name}/config.json"
-    if has_env:
-        src += " + 项目根 .env  ← 凭证读这里"
-    elif has_local:
-        src += "（外挂 config.local.json）"
-    print(f"配置文件      {src}")
+    print(f"配置文件      {HERE.name}/config.json" + ("（外挂 config.local.json）" if has_local else ""))
 
     root = project_root(cfg)
     store = _store_dir(cfg, root)
@@ -230,14 +289,15 @@ def cmd_doctor(cfg, actions):
     o = cfg.get("openapi") or {}
     if not (o.get("client_id") and o.get("api_key")):
         print("开放平台凭证  没填 ← 这条链全走 HTTP，不填什么都干不了")
-        print(f"              打开项目根 .env，填这两行：")
-        print("                  GETNOTE_CLIENT_ID=cli_ 开头")
-        print("                  GETNOTE_API_KEY=gk_live_ 开头")
-        print("              没有 .env？照 .env.example 复制一份再填。")
+        print("              存进你自己的电脑（项目里不留 key）：")
+        print("                  python 05_技能/set_key.py getnote "
+              "--client-id cli_xxx --api-key gk_live_xxx")
+        print("              怎么拿：得到大脑开放平台 → 创建应用 → 生成 API Key")
         return 1
 
     base = str(o.get("base_url") or DEFAULT_BASE).rstrip("/")
-    print(f"开放平台凭证  已填（来源：{'项目根 .env' if has_env else 'config.local.json'}）")
+    say = sorted(set(CRED_SOURCE.values()))
+    print(f"开放平台凭证  已填（来源：{say[0] if say else '未知'}）")
     print(f"接口地址      {base}")
 
     try:

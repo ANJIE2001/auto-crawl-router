@@ -37,6 +37,8 @@ if sys.platform == "win32":
 
 HERE = Path(__file__).resolve().parent
 TIMEOUT = 900  # 单次 CLI 调用上限（秒）
+REG_ROOT = r"Software\AutoCrawlRouter"      # 独立注册表项的根
+REG_SECTION = "lingzao"
 
 
 # ---------------------------------------------------------------- 配置
@@ -70,24 +72,91 @@ def read_env_file(path):
     return out
 
 
+def _reg_env(name):
+    """
+    直接读注册表里的**用户环境变量**（HKCU\\Environment）。
+
+    为什么绕这一下：Windows 设完环境变量不会自动进已经开着的进程，
+    直接读注册表就能「设完立刻用」，不用重开窗口。
+    """
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, name)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def _reg_app(field):
+    """读独立注册表项 HKCU\\Software\\AutoCrawlRouter\\lingzao\\<field>。"""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"{REG_ROOT}\{REG_SECTION}",
+                            0, winreg.KEY_READ) as k:
+            v, _ = winreg.QueryValueEx(k, field)
+            return str(v).strip()
+    except Exception:
+        return ""
+
+
+def resolve_cred(env_name, reg_field):
+    """
+    按优先级找一个凭证值，返回 (值, 来源说明)。顺序：
+
+        ① 进程环境变量
+        ② 注册表里的用户环境变量（刚设完、还没刷新的情况）
+        ③ 独立注册表项 HKCU\\Software\\AutoCrawlRouter\\lingzao
+        ④ 项目根 .env
+
+    ★ **前三项都在你自己的电脑里，打包带走不了** —— 这就是这个顺序存在的理由。
+      .env 排最后只作兼容。要设凭证：`python 05_技能/set_key.py`
+    """
+    v = (os.environ.get(env_name) or "").strip()
+    if v:
+        return v, f"环境变量 {env_name}"
+    v = _reg_env(env_name)
+    if v:
+        return v, f"用户环境变量 {env_name}"
+    v = _reg_app(reg_field)
+    if v:
+        return v, f"注册表 HKCU\\{REG_ROOT}\\{REG_SECTION}"
+    v = (read_env_file(HERE.parent.parent / ".env").get(env_name) or "").strip()
+    if v:
+        return v, "项目根 .env（建议搬进环境变量，见 05_技能/set_key.py）"
+    return "", ""
+
+
 def load_config():
     """
-    读同目录 config.json，有 config.local.json 就叠在上面。
+    配置来源，越靠前越优先：
 
-    再叠一层项目根 `.env` —— 凭证的家在那：不进 git，也不会被拖进打包。
-    灵造的 key 平时由 CLI 自己管（~/.lingzao/config.json），
-    只有「想给本项目单独用一个 key」时才需要在 .env 里填 LINGZAO_API_KEY。
+        ① 进程环境变量           ┐
+        ② 注册表里的用户环境变量  ├ ★ 凭证的家 —— 只在你电脑里，打包带不走
+        ③ 独立注册表项           ┘
+        ④ 项目根 .env            ← 兼容保留；真值不该放这儿
+        ⑤ 同目录 config.json / config.local.json（结构 + 说明，进 git）
+
+    ★ 灵造的 key 平时由 CLI 自己管（`~/.lingzao/config.json`），**这里通常留空就行**。
+      只有「想给本项目单独用一个 key」时才需要设 LINGZAO_API_KEY。
+      设凭证：`python 05_技能/set_key.py lingzao --api-key lgz_xxx`
     """
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     local = HERE / "config.local.json"
     if local.is_file():
         _overlay(cfg, json.loads(local.read_text(encoding="utf-8")))
 
-    env = read_env_file(HERE.parent.parent / ".env")
-    if env.get("LINGZAO_API_KEY"):
-        cfg.setdefault("auth", {})["api_key"] = env["LINGZAO_API_KEY"]
-    if env.get("LINGZAO_BASE_URL"):
-        cfg.setdefault("auth", {})["base_url"] = env["LINGZAO_BASE_URL"]
+    auth = cfg.setdefault("auth", {})
+    val, _src = resolve_cred("LINGZAO_API_KEY", "api_key")
+    if val:
+        auth["api_key"] = val
+    val, _src = resolve_cred("LINGZAO_BASE_URL", "base_url")
+    if val:
+        auth["base_url"] = val
     return cfg
 
 
