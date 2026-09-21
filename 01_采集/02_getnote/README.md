@@ -19,19 +19,18 @@
 | Client ID | `cli_xxx` | `X-Client-ID` |
 | API Key | `gk_live_xxx` | `Authorization`（**不带 Bearer 前缀**） |
 
-填进同目录的 **`config.local.json`**：
+填进**项目根的 `.env`**（没有就照 `.env.example` 复制一份）：
 
-```json
-{
-  "openapi": {
-    "client_id": "cli_xxxxxxxx",
-    "api_key": "gk_live_xxxxxxxx"
-  }
-}
+```ini
+GETNOTE_CLIENT_ID=cli_xxxxxxxx
+GETNOTE_API_KEY=gk_live_xxxxxxxx
+GETNOTE_BASE_URL=https://openapi.biji.com/open/api/v1
 ```
 
-> **为什么不填 `config.json`？** 那个文件会进 git。`config.local.json` 在 `.gitignore` 里
-> （`01_采集/*/config.local.json`），填那儿不会外泄。
+> **为什么放 `.env`？** 它已经在 `.gitignore` 里 —— 既不会进 git，**也不会被拖进打包**。
+> 同目录的 `config.local.json` 现在只剩空壳（真值已搬走），留着是当路标：免得有人拿着旧文档
+> 来这儿找 key。三层优先级：`config.json` < `config.local.json` < **`.env`（说了算）**。
+> 打包发人前的排除清单见 `05_技能/打包排除清单.md`。
 
 **开权限的时候**只抓外部内容的话，勾这几个就够：
 
@@ -166,7 +165,7 @@ save / note update / note delete / note share    写
 ⚠️ **这是「约定隔离」，不是「权限隔离」。** 现在这条链用的是**全权限** key
 （用户知情接受），靠代码自觉不碰那些接口。想硬隔离只有一条路：
 去开放平台建一个只勾 `topic.read` + `topic.blogger.read` 的应用，把
-`config.local.json` 里那两个值换掉，**代码不用动**。
+**项目根 `.env`** 里那两个值换掉，**代码不用动**。
 
 ---
 
@@ -175,8 +174,9 @@ save / note update / note delete / note share    写
 `collect.py` 里带着全部执行逻辑，**不引用 `01_采集` 里的任何其他文件**。
 只用 Python 标准库，一个 pip 包都不用装。
 
-拷到哪儿都能跑，只要同目录有 `config.json` 和 `config.local.json`。
-唯一要注意的：如果新位置往上两级不是项目根，打开 `config.json` 填一下 `project_root`。
+拷到哪儿都能跑，只要同目录有 `config.json`，**外加项目根的 `.env`**。
+唯一要注意的：如果新位置往上两级不是项目根，打开 `config.json` 填一下 `project_root`
+（`.env` 就是按这个根去找的）。
 
 > **抓完自动接清洗**那一步会去找 `03_加工/02_getnote/run.py`。
 > 找不到就跳过（只提示一句），采集照常工作 —— 所以**删掉加工层目录，

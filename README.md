@@ -26,9 +26,11 @@
 
 | 想干什么 | 读哪份 |
 |---|---|
+| **第一次用，或者换了台电脑** | `python 05_技能/prereq_check.py` —— 装了没、凭证配了没 |
 | 找不着北：哪个文件夹干什么、改完要同步哪儿 | `05_技能/目录说明.md` |
 | **要试一个新平台** | `05_技能/新源测试流程.md` |
 | **要加第 3 个源** | `05_技能/新增渠道规范.md` |
+| **要打包发给别人** | `05_技能/打包排除清单.md` |
 | 想知道当初为什么这么定 | `05_技能/开发复盘.md` |
 | 动手前 | `python 05_技能/selfcheck.py` |
 
@@ -59,6 +61,9 @@
 ## 快速开始
 
 ```bash
+# 第 0 步：查环境 —— 灵造装了没、得到大脑的 key 配了没。缺什么它会说怎么装
+python 05_技能/prereq_check.py
+
 # 采集层不用装任何东西（只用 Python 标准库）；加工层要 openpyxl
 pip install openpyxl
 
@@ -112,7 +117,8 @@ python 03_加工/02_getnote/run.py cover "02_储存/02_getnote/blogger"
   想把图池一次性补满：`python 03_加工/02_getnote/run.py cover`。
 - **得到大脑的标题不能被 AI 改**。用 `save` 存链接时必须自己传 `--title`。
 - **凭证**：灵造归 CLI 管（`~/.lingzao/config.json`，不用你操心）；得到大脑走开放平台 HTTP，
-  key 放在 `01_采集/02_getnote/config.local.json`（已 gitignore，不进仓库）。
+  key 放在**项目根 `.env`** —— 已 gitignore，不进仓库，**也不会进打包**。
+  没有 `.env`？照 `.env.example` 复制一份再填。打包发人前看 `05_技能/打包排除清单.md`。
 - **别在 Git Bash 里直接敲 `getnote`**。Git Bash 会命中 npm 生成的那个无扩展名 sh 脚本然后崩；
   用 CMD / PowerShell，或者干脆走 `collect.py`（它只认 `.cmd` / `.exe`）。
 

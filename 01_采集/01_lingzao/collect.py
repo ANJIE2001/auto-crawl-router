@@ -49,12 +49,45 @@ def _overlay(base, extra):
             base[k] = v
 
 
+def read_env_file(path):
+    """
+    读项目根 .env（一行一个 KEY=VALUE，# 开头是注释）。
+
+    为什么不引第三方 dotenv：采集层「不用装任何东西」是它的卖点，
+    为了几行配置去装个包不划算。
+    """
+    if not path.is_file():
+        return {}
+    out = {}
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        v = v.strip().strip('"').strip("'")
+        if v:
+            out[k.strip()] = v
+    return out
+
+
 def load_config():
-    """读同目录 config.json，有 config.local.json 就叠在上面（后者不入 git，适合放密钥）。"""
+    """
+    读同目录 config.json，有 config.local.json 就叠在上面。
+
+    再叠一层项目根 `.env` —— 凭证的家在那：不进 git，也不会被拖进打包。
+    灵造的 key 平时由 CLI 自己管（~/.lingzao/config.json），
+    只有「想给本项目单独用一个 key」时才需要在 .env 里填 LINGZAO_API_KEY。
+    """
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     local = HERE / "config.local.json"
     if local.is_file():
         _overlay(cfg, json.loads(local.read_text(encoding="utf-8")))
+
+    env = read_env_file(HERE.parent.parent / ".env")
+    if env.get("LINGZAO_API_KEY"):
+        cfg.setdefault("auth", {})["api_key"] = env["LINGZAO_API_KEY"]
+    if env.get("LINGZAO_BASE_URL"):
+        cfg.setdefault("auth", {})["base_url"] = env["LINGZAO_BASE_URL"]
     return cfg
 
 

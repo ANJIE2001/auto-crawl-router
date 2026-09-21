@@ -61,12 +61,55 @@ def _overlay(base, extra):
             base[k] = v
 
 
+def read_env_file(path):
+    """
+    读项目根 .env（一行一个 KEY=VALUE，# 开头是注释）。
+
+    为什么不引第三方 dotenv：采集层「不用装任何东西」是它的卖点，
+    为了几行配置去装个包不划算。
+    """
+    if not path.is_file():
+        return {}
+    out = {}
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        v = v.strip().strip('"').strip("'")
+        if v:
+            out[k.strip()] = v
+    return out
+
+
+def env_file_path():
+    """项目根 .env —— 本文件在 01_采集/<源>/ 下，往上两级就是根。"""
+    return HERE.parent.parent / ".env"
+
+
 def load_config():
-    """读同目录 config.json，有 config.local.json 就叠在上面（后者不入 git，放真凭证）。"""
+    """
+    配置三层，后者压前者：
+
+        ① 同目录 config.json        —— 结构 + 说明，进 git，真值留空
+        ② 同目录 config.local.json  —— 老位置，现在只剩空壳（仍兼容，不报错）
+        ③ 项目根 .env               —— ★ 真凭证的家，不进 git、不进安装包
+
+    凭证只该写在第 ③ 层。前两层填了也不报错，但 .env 说了算。
+    """
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     local = HERE / "config.local.json"
     if local.is_file():
         _overlay(cfg, json.loads(local.read_text(encoding="utf-8")))
+
+    env = read_env_file(env_file_path())
+    if env:
+        o = cfg.setdefault("openapi", {})
+        for env_key, cfg_key in (("GETNOTE_CLIENT_ID", "client_id"),
+                                 ("GETNOTE_API_KEY", "api_key"),
+                                 ("GETNOTE_BASE_URL", "base_url")):
+            if env.get(env_key):
+                o[cfg_key] = env[env_key]
     return cfg
 
 
@@ -84,9 +127,12 @@ def openapi_creds(cfg):
     if not cid or not key:
         raise SystemExit(
             "缺开放平台凭证 —— 这个源全走 HTTP API，两个值必须配好。\n"
-            f"  打开  {HERE.name}/config.local.json\n"
-            "  在 openapi 段填 client_id（cli_ 开头）和 api_key（gk_live_ 开头）。\n"
-            f"  怎么拿：{o.get('get_key_at') or '得到大脑开放平台 → 创建应用 → 生成 API Key'}"
+            f"  打开  {env_file_path()}\n"
+            "  填这两行（真值只放这里，别写进 config.json）：\n"
+            "      GETNOTE_CLIENT_ID=cli_ 开头\n"
+            "      GETNOTE_API_KEY=gk_live_ 开头\n"
+            f"  怎么拿：{o.get('get_key_at') or '得到大脑开放平台 → 创建应用 → 生成 API Key'}\n"
+            "  没有 .env？照 .env.example 复制一份再填。"
         )
     base = str(o.get("base_url") or DEFAULT_BASE).rstrip("/")
     return base, cid, key
@@ -166,8 +212,15 @@ def cmd_doctor(cfg, actions):
     print(f"{name} · 自检")
     print("=" * 56)
 
+    envp = env_file_path()
+    has_env = bool(read_env_file(envp))
     has_local = (HERE / "config.local.json").is_file()
-    print(f"配置文件      {HERE.name}/config.json" + ("（外挂 config.local.json）" if has_local else ""))
+    src = f"{HERE.name}/config.json"
+    if has_env:
+        src += " + 项目根 .env  ← 凭证读这里"
+    elif has_local:
+        src += "（外挂 config.local.json）"
+    print(f"配置文件      {src}")
 
     root = project_root(cfg)
     store = _store_dir(cfg, root)
@@ -177,11 +230,14 @@ def cmd_doctor(cfg, actions):
     o = cfg.get("openapi") or {}
     if not (o.get("client_id") and o.get("api_key")):
         print("开放平台凭证  没填 ← 这条链全走 HTTP，不填什么都干不了")
-        print(f"              填 {HERE.name}/config.local.json 的 openapi 段")
+        print(f"              打开项目根 .env，填这两行：")
+        print("                  GETNOTE_CLIENT_ID=cli_ 开头")
+        print("                  GETNOTE_API_KEY=gk_live_ 开头")
+        print("              没有 .env？照 .env.example 复制一份再填。")
         return 1
 
     base = str(o.get("base_url") or DEFAULT_BASE).rstrip("/")
-    print("开放平台凭证  已填")
+    print(f"开放平台凭证  已填（来源：{'项目根 .env' if has_env else 'config.local.json'}）")
     print(f"接口地址      {base}")
 
     try:

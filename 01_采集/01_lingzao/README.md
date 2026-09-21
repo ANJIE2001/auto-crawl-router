@@ -51,7 +51,7 @@ python 01_采集/01_lingzao/collect.py doctor
 | 字段 | 什么时候填 |
 |---|---|
 | `cli.path` | 只在自动找不到 CLI 时才填，填完整路径 |
-| `auth.api_key` | 只在想覆盖 CLI 已存的 Key 时才填。**这个文件会进 git，别把 Key 写这儿**——要填请写到同目录的 `config.local.json`，那个不进 git |
+| `auth.api_key` | 只在想覆盖 CLI 已存的 Key 时才填。**这个文件会进 git，别把 Key 写这儿**——要填请写到**项目根 `.env`** 的 `LINGZAO_API_KEY=`（那个不进 git，也不进打包） |
 
 其余字段保持默认即可。
 

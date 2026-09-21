@@ -82,7 +82,11 @@ def check_secrets() -> None:
     for p in walk_files(ROOT):
         if p.name.startswith(".tmp_"):
             continue
-        if p.suffix.lower() not in (".py", ".json", ".md", ".txt", ".yaml", ".yml", ".example", ".cfg", ".ini"):
+        # 无扩展名的也要扫 —— .env 就没有后缀，漏了它等于白扫
+        name = p.name.lower()
+        if (p.suffix.lower() not in (".py", ".json", ".md", ".txt", ".yaml", ".yml",
+                                     ".example", ".cfg", ".ini")
+                and name != ".env" and not name.startswith(".env.")):
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="ignore")
@@ -102,8 +106,9 @@ def check_secrets() -> None:
         if len(real) > 6:
             add(ERROR, "还有更多密钥命中", f"共 {len(real)} 处")
     if benign:
-        add(INFO, "本地凭证文件存在（已被 .gitignore 挡住，不会进 git）",
-            "、".join(sorted({Path(h[0]).name for h in benign})))
+        add(INFO, "本地凭证文件存在（.gitignore 挡着，不进 git）",
+            "、".join(sorted({Path(h[0]).name for h in benign}))
+            + "　← 打包发人前也要排掉，见 05_技能/打包排除清单.md")
     if not hits:
         add(INFO, "密钥扫描", "干净，没扫到任何真凭证")
 
