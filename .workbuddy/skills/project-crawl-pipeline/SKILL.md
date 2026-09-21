@@ -9,9 +9,17 @@ agent_created: true
 ## ★ 动手前先跑自检
 
 ```bash
-python 05_技能/selfcheck.py            # 全量
+python 05_技能/prereq_check.py         # 环境：软件装了没、凭证配了没
+python 05_技能/selfcheck.py            # 数据：这次抓的对不对（全量）
 python 05_技能/selfcheck.py --quiet    # 只看「错误」和「警告」
 ```
+
+**两个脚本分工别搞混：**
+
+| 脚本 | 查什么 | 什么时候跑 |
+|---|---|---|
+| `prereq_check.py` | **环境上岗** —— Python 依赖 / 灵造 CLI / 得到大脑凭证。缺什么就打印「怎么装、装完在哪」 | 第一次用、换了电脑、报「凭证没填」时 |
+| `selfcheck.py` | **数据体检** —— 八项：密钥 / 落盘命名 / 逐字稿截断 / 封面覆盖 / 条数对账 / 四层结构 / 配置残留 / 表里「未知」 | 任何抓取加工**动手前** |
 
 八项检查：**密钥 / 落盘命名 / 逐字稿截断 / 封面覆盖 / 条数对账 / 四层结构 / 配置残留 / 表里「未知」**。
 
@@ -25,10 +33,12 @@ python 05_技能/selfcheck.py --quiet    # 只看「错误」和「警告」
 
 | 你接到什么 | 先做/先读 |
 |---|---|
+| **第一次用 / 换了电脑 / 报「凭证没填」** | `python 05_技能/prereq_check.py` —— 它会告诉你缺什么、怎么装、装哪 |
 | **任何抓取/加工任务** | 先跑 `05_技能/selfcheck.py` |
 | **要加一个新渠道（第 3 个源）** | `05_技能/新增渠道规范.md` —— 九步总览、骨架、模板、六个必须有、八个文件职责、验收清单 |
 | **要试一个新平台（还没接）** | `05_技能/新源测试流程.md` —— 测五件事、四级测试、判定表、记录表 |
 | **不知道某个文件夹干什么 / 改完要同步哪儿** | `05_技能/目录说明.md` |
+| **要打包发给别人** | `05_技能/打包排除清单.md` —— 钥匙、数据、私人记录都不能进包 |
 | 某个东西行为怪、数据对不上 | 下面「判断标准速查」 |
 | 想推翻某个设计 | `05_技能/开发复盘.md` —— 当初为什么这么定 |
 | 查灵造的参数 / 积分 / 脚本路径 | `05_技能/灵造使用说明.md`（官方手册快照）|
@@ -45,6 +55,10 @@ python 05_技能/selfcheck.py --quiet    # 只看「错误」和「警告」
 **一个源一个文件夹，各自完全自包含**：`config.json` + `collect.py` + `README.md`，
 拷到别处也能独立跑。卸载一个源 = 删掉那个文件夹。
 代价：两份 `collect.py` 的工具代码重复，改 bug 要改两遍（**用户已拍板接受这个代价**）。
+
+★ **凭证不在源文件夹里 —— 在项目根 `.env`**（2026-09-21 起）。那里不进 git，也不会被拖进打包。
+三层优先：`config.json`（进 git，留空） < `config.local.json`（空壳路标） < **`.env`（说了算）**。
+缺凭证时 `collect.py doctor` 会直接说打开哪个文件。打包排除清单见 `05_技能/打包排除清单.md`。
 
 ```
 01_采集  →  02_储存  →  03_加工  →  04_产出
@@ -311,10 +325,12 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
 |---|---|
 | **加了一个源** | `05_技能/新增渠道规范.md`（照验收清单逐条打勾）、根 `README.md`、`使用说明.md`、`05_技能/目录说明.md` |
 | **命令路径** | 根 `README.md`、`01_采集/README.md`、各源 `README.md`、`04_产出/README.md`、`使用说明.md` |
+| **凭证位置 / 环境文件** | 根 `README.md`、`使用说明.md`、`01_采集/README.md`、各源 `README.md`、`05_技能/目录说明.md`、`新增渠道规范.md`、`打包排除清单.md`、两个 `collect.py` 的 doctor 提示语、本技能 |
 | **价目** | 灵造 `README.md`、**`01_采集/01_lingzao/collect.py` 的 `cost` 字段**、根 `README.md` |
 | **产出结构** | `04_产出/README.md`、`03_加工/columns.md`、相关 `bundle.py` 的 docstring |
 | **列名** | `03_加工/columns.md` + 两个 `record.py`（而且**历史表要重跑**） |
 | **能力边界** | `01_采集/02_getnote/README.md`、`MEMORY.md`、本技能 |
+| **打包规则** | `05_技能/打包排除清单.md`、`.gitignore` |
 | **外部工具路径** | 各源 `README.md`（★ 灵造那个 `setup.sh` 路径错过一次：写成 `~/.lingzao/scripts/`，那个目录根本不存在；真正的在**灵造 Skill 目录**的 `scripts/` 下） |
 
 ⚠️ **`collect.py` 的 `cost` 字段比文档更危险** —— 它直接显示在预演输出上，
@@ -338,17 +354,37 @@ GET /blogger/content/detail?topic_id=&post_id=       内容详情 ★ 逐字稿 
 - **别调得到大脑的私人笔记命令** —— 用户划了边界（见「外抓链路」）
 - **别让 AI 定标题** —— `save` 会重写，必须自己传 `--title`
 - **别把两个源的封面逻辑混着写** —— 一个临时链接要抢、一个永久链接随时补
+- **别把真凭证写进任何进 git 的文件** —— 只写项目根 `.env`（`config.json` 系列一律留空）。
+  打包发人前照 `05_技能/打包排除清单.md` 对一遍 —— **`.gitignore` 只管 git，管不了压缩包**
+- **别漏掉 `.env` 的密钥扫描** —— 它**没有扩展名**，扫描白名单容易把它漏过去
+  （`selfcheck.py` 2026-09-21 已修，改扫描逻辑时注意别改回去）
 
 ## 环境备注
 
-- Python：`C:\Users\PC\.workbuddy\binaries\python\envs\default\Scripts\python.exe`（有 openpyxl）
+- Python：**认这台机器的实际路径**。本机是
+  `C:\Users\admin\.workbuddy\binaries\python\envs\default\Scripts\python.exe`（有 openpyxl 3.1.5）；
+  另一台机器是 `C:\Users\PC\...`。
+  ⚠️ **别用 managed 的 `binaries\python\versions\3.13.12\python.exe`** —— 那里面**没有 openpyxl**，
+  用它跑 `selfcheck.py` 会**假报「没装 openpyxl」并静默跳过表格检查**（提示条数从 26 掉到 21）。
+  **提示条数少了就是被跳过了。**
 - 跑 Python 前设 `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`
 - Bash 工具缺 coreutils —— 已知没有 `head` / `ls` / `sed` / `cat` / `grep` / `cut` / `wc` / `dirname`，
   逻辑写成 `.py` 跑，结果落文件再读；**别在任何命令里用这些**
+  （`ls | head` 会**静默返回空**，曾差点误判 venv 不存在）
 - 灵造 CLI：`%USERPROFILE%\.lingzao\bin\lingzao.cmd`，凭证在 `~/.lingzao/config.json`
-- 得到大脑 CLI：`D:\npm_global\getnote.cmd`（**别用** npm 那个无扩展名的，Git Bash 下会崩）
+  - ⚠️ **这个 `.cmd` 是必须的、且要自己补**：官方 `setup.sh` 只生成**没有扩展名的 bash 脚本**
+    `~/.lingzao/bin/lingzao`，Windows 认不了 → `collect.py` 就会报「CLI 未找到」。
+    内容就一行：`"<venv python>" "<skill目录>\scripts\lingzao_client.py" %*`
+  - ⚠️ **更新灵造别只跑 `npx skills add`** —— 它认不出 WorkBuddy 的 `skills/@user_71a0bff3/`
+    结构，会装进几十个别家 agent 目录、偏不碰 WorkBuddy 那个。要带 `--agent "*" -y` 跑完，
+    再把 `~/.agents/skills/lingzao` **手动合并**过来，并**保留**新版没有的
+    `_meta.json` / `index.md` / `skill-card.md` / `playbooks/search-credit-notice.md`（**价目靠它**）
+    - 合并完记得跑 `check-version` 确认显示「已是最新」
+- 得到大脑 CLI：`D:\npm_global\getnote.cmd`（**别用** npm 那个无扩展名的，Git Bash 下会崩）；
+  但**本项目已改走 HTTP API，用不到它**
 - 灵造余额可直接从响应里读：顶层 `cost_credits` / `remaining_credits`
 - ⚠️ **带 `&` 的链接必须走 exe + 数组传参**：走 `.cmd` 或拼字符串，cmd.exe 会把 `&`
   当命令分隔符切掉。灵造的 `collect.py` 已修（`_quote_for_cmd()`），得到大脑已改走 HTTP 不涉及
 - ⚠️ **别把含反引号 / `&` 的文本塞进 Bash 工具的双引号里** —— bash 会先做命令替换，
   写进文件的内容**静悄悄缺一块、exit code 还是 0**。要写这类内容，用 Write 落 `.js` 再跑
+- ⚠️ **Python 写报告文件用 Windows 记事本打开会乱码时**，写 `encoding="utf-8-sig"`（带 BOM）
