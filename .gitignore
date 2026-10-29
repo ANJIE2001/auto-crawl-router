@@ -11,6 +11,10 @@
 # 本地临时脚本
 .tmp_*
 
+# 临时产物（飞书回填、接口试跑留下的中间文件）
+_fill_tmp/
+_rec.manifest.json
+
 # Python 编译缓存
 __pycache__/
 *.pyc

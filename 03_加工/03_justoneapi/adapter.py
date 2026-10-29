@@ -62,7 +62,12 @@ def _first_url(obj):
 
 # ---------------------------------------------------------------- 各平台
 def parse_xhs(payload, ctx):
-    """小红书 · 账号搜索。data.users[]"""
+    """小红书 · 账号搜索。data.users[]
+
+    ⚠️ 这里的 desc 是「小红书号：49313791820」这种占位，**不是简介**。
+       真简介要调 get-user/v3 才有（见 parse_profile）。所以占位的直接置空，
+       免得表里看着「有简介」其实全是号码。
+    """
     out = []
     users = ((payload.get("data") or {}).get("users")) or []
     for u in users:
@@ -70,13 +75,17 @@ def parse_xhs(payload, ctx):
             continue
         uid = u.get("id")
         fans = _fans_from_text(u.get("sub_title"))
+        desc = u.get("desc")
+        if _placeholder_desc(desc):
+            desc = None
         out.append({
             "platform": "小红书",
             "name": u.get("name"),
             "account_name": u.get("red_id"),
             "account_id": uid,
             "fans": fans,
-            "desc": u.get("desc"),
+            "desc": desc,
+            "city": None,
             "verify": "官方认证" if u.get("red_official_verified") else None,
             "avatar": u.get("image"),
             # 接口给的是 xhsdiscover:// 客户端跳转，网页版按 id 拼得出来
@@ -194,6 +203,84 @@ PARSERS = {
 }
 
 
+# ---------------------------------------------------------------- 博主资料（补字段）
+def _pick(d, *names):
+    """按顺序取第一个有值的字段 —— 四平台字段名不统一，这里兜一下。"""
+    for n in names:
+        v = d.get(n)
+        if v not in (None, "", [], {}):
+            return v
+    return None
+
+
+def parse_profile(payload, plat):
+    """博主资料 → 补充字段。
+
+    ★ 为什么需要这一步：「账号搜索」只给列表页那点东西 ——
+      小红书的 desc 存的是「小红书号：xxx」，抖音 signature_extra 是 null，
+      四个平台的搜索接口**都不给城市**。要简介和城市必须再调一次「博主资料」。
+
+    字段来源（实测）：
+      小红书 get-user/v3 → data.desc / data.fans / data.ip_location
+      抖音   get-user-detail/v3 → data.user.signature / follower_count / city
+    """
+    d = payload.get("data") or {}
+    if plat == "dy" and isinstance(d.get("user"), dict):
+        d = d["user"]
+    desc = _pick(d, "desc", "signature", "signature_extra", "intro", "bio")
+    if not desc and plat == "xhs":
+        si = d.get("share_info")
+        if isinstance(si, dict):
+            desc = si.get("content")
+    city = _pick(d, "ip_location", "location", "city", "province", "region")
+    return {
+        "desc": desc,
+        "city": city,
+        "fans": _pick(d, "fans", "follower_count", "followers"),
+        "gender": d.get("gender"),
+        "note_count": _pick(d, "note_num_stat", "aweme_count", "note_count"),
+        "nickname": _pick(d, "nickname", "name"),
+    }
+
+
+def load_profiles(store_dir: Path):
+    """扫 <平台>.user_profile / <平台>.user_detail，返回 {(平台, 账号ID): 补充字段}。"""
+    out = {}
+    if not store_dir.is_dir():
+        return out
+    for d in sorted(store_dir.iterdir()):
+        if not d.is_dir() or "." not in d.name:
+            continue
+        plat, action = d.name.split(".", 1)
+        if plat not in PARSERS:
+            continue
+        if not (action.startswith("user_profile") or action.startswith("user_detail")):
+            continue
+        for jp in sorted(d.glob("*.json")):
+            if jp.name.endswith(".meta.json"):
+                continue
+            meta = _meta_of(jp)
+            try:
+                payload = json.loads(jp.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if payload.get("code") != 0:
+                continue
+            params = meta.get("params") or {}
+            uid = params.get("userId") or params.get("uid") or params.get("secUid")
+            data = payload.get("data") or {}
+            if not uid and isinstance(data, dict):
+                inner = data.get("user") if isinstance(data.get("user"), dict) else {}
+                uid = inner.get("uid") or data.get("red_id")
+            if not uid:
+                continue
+            try:
+                out[(PLATFORM_LABEL[plat], str(uid))] = parse_profile(payload, plat)
+            except Exception:
+                continue
+    return out
+
+
 # ---------------------------------------------------------------- 扫盘
 def _meta_of(json_path: Path):
     """读同名的 .meta.json —— 抓取时间、关键词、花费都在里面。"""
@@ -206,17 +293,26 @@ def _meta_of(json_path: Path):
         return {}
 
 
+def _placeholder_desc(s):
+    """小红书的搜索接口把 desc 用成了「小红书号：xxx」，那不是简介，要允许被资料接口覆盖。"""
+    return bool(s) and str(s).strip().startswith("小红书号")
+
+
 def load_all(store_dir: Path, keyword=None):
     """扫 02_储存/03_justoneapi/<平台.动作>/ 下所有响应，解析成记录。
 
     只收「账号搜索」类动作（*search_user / *search_account）；
     别的动作（笔记详情、视频列表）结构不同，等各自的 adapter 写好了再收。
+
+    ★ 如果之前跑过「博主资料」，会自动把简介 / IP属地 / 精确粉丝数补进来。
     """
     recs = []
     scanned = 0
     skipped = []
     if not store_dir.is_dir():
         return recs, scanned, skipped
+
+    profiles = load_profiles(store_dir)
 
     for d in sorted(store_dir.iterdir()):
         if not d.is_dir():
@@ -258,6 +354,20 @@ def load_all(store_dir: Path, keyword=None):
                 continue
             if not got:
                 skipped.append((jp.name, "解析出 0 条（结构可能变了）"))
+            for rec in got:
+                p = profiles.get((rec["platform"], str(rec.get("account_id") or "")))
+                if not p:
+                    continue
+                rec["enriched"] = True
+                # 简介：搜索接口给的如果是「小红书号：xxx」这种占位，要换成真简介
+                if p.get("desc") and (not rec.get("desc") or _placeholder_desc(rec.get("desc"))):
+                    rec["desc"] = p["desc"]
+                if p.get("city"):
+                    rec["city"] = p["city"]
+                if p.get("fans") is not None:
+                    rec["fans"] = p["fans"]      # 资料接口是精确数字，优先
+                rec["gender"] = p.get("gender")
+                rec["note_count"] = p.get("note_count")
             recs.extend(got)
             scanned += 1
     return recs, scanned, skipped
