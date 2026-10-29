@@ -685,6 +685,182 @@ def clean_after(cfg, root, path, action, enabled=True):
     return proc.returncode
 
 
+# ---------------------------------------------------------------- 批量关键词搜索
+
+# 价目 —— 改价时这里和 ACTIONS["search"]["cost"] 必须一起改。
+# 用户控预算就盯这两个数；1 积分 = 0.01 元是用户自己的口径（20 积分 = 0.2 元/次）。
+CREDITS_PER_SEARCH = 20
+YUAN_PER_CREDIT = 0.01
+BATCH_DEFAULT_CAP = 10          # 一次最多几个词，防手滑
+
+_SPLIT_WORDS = re.compile(r"[,，、;；\n\r\t]+")
+
+
+def _parse_words(text):
+    """按逗号 / 顿号 / 分号 / 换行切词，去空、去重、保序。"""
+    seen, out = set(), []
+    for w in _SPLIT_WORDS.split(text or ""):
+        w = w.strip().strip("\"'")
+        if w and w not in seen:
+            seen.add(w)
+            out.append(w)
+    return out
+
+
+def cmd_search_batch(cfg, args):
+    """一批关键词 → 逐个 search → 合成一张表。
+
+    ★ 核心护栏：联想是免费的，搜索才花钱。所以这里只搜用户明确给的词，
+      绝不自作主张扩词；而且先报总价，不给 --go 一分不花。
+    """
+    root = project_root(cfg)
+    cli = resolve_cli(cfg)
+
+    from_file = []
+    if args.file:
+        fp = Path(args.file).expanduser()
+        if not fp.is_file():
+            print(f"找不到词表文件：{fp}")
+            return 1
+        from_file = _parse_words(fp.read_text(encoding="utf-8"))
+
+    words, seen = [], set()
+    for w in from_file + _parse_words(args.keywords):
+        if w not in seen:
+            seen.add(w)
+            words.append(w)
+
+    if not words:
+        print('没给关键词。用 --keywords "祛湿,气血" 或 --file 词表.txt')
+        return 1
+
+    unit = round(CREDITS_PER_SEARCH * YUAN_PER_CREDIT, 4)
+    total = round(len(words) * unit, 2)
+    credits = len(words) * CREDITS_PER_SEARCH
+    cap = args.max or BATCH_DEFAULT_CAP
+
+    print("批量关键词搜索")
+    print("-" * 56)
+    for i, w in enumerate(words, 1):
+        print(f"  {i:>2}. {w}")
+    print("-" * 56)
+    print(f"  关键词   {len(words)} 个")
+    print(f"  单价     {CREDITS_PER_SEARCH} 积分 = {unit} 元 / 个")
+    print(f"  合计     {total} 元（{credits} 积分）")
+    print(f"  落盘     02_储存/01_lingzao/search-notes/")
+    print("-" * 56)
+
+    if len(words) > cap:
+        print(f"一次最多 {cap} 个词（默认上限，防手滑）。")
+        print(f"确实要搜这么多，加 --max {len(words)} 再跑一次。")
+        return 1
+
+    if not args.go:
+        print("这是预演，没花钱。词表和金额确认没问题，末尾加 --go 再来一次。")
+        return 0
+
+    if not cli:
+        print("没找到 CLI。先跑 `doctor` 看看。")
+        return 1
+
+    spec = ACTIONS["search"]
+    base = {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "sort": args.sort or "",
+        "note_type": args.note_type or "",
+        "time_filter": args.time_filter or "",
+    }
+    out_dir = root / cfg["store_dir"] / spec["sub_dir"]
+    rel = out_dir.relative_to(root)
+
+    done, failed = [], []
+    remain = None
+
+    for i, w in enumerate(words, 1):
+        print(f"\n[{i}/{len(words)}] {w}")
+        values = dict(base, keyword=w, keyword_slug=slug(w))
+        try:
+            rc, out, err = run_cli(cli, build_argv(spec, values), env_for_cli(cfg))
+        except subprocess.TimeoutExpired:
+            print(f"  超时（>{TIMEOUT}s），跳过")
+            failed.append((w, "超时"))
+            continue
+
+        if rc != 0 or not out.strip():
+            print(f"  失败 rc={rc}")
+            if err.strip():
+                print("  " + err.strip()[:300].replace("\n", " "))
+            failed.append((w, f"rc={rc}"))
+            continue
+
+        payload = None
+        try:
+            payload = json.loads(out)
+        except Exception:
+            pass
+
+        # 有的 CLI 即使 rc=0 也会在正文里报失败
+        if isinstance(payload, dict) and payload.get("success") is False:
+            print("  接口报 success=false，跳过")
+            failed.append((w, "success=false"))
+            continue
+
+        # 余额能读到就读 —— 用户控预算就盯这个
+        if isinstance(payload, dict):
+            for k in ("remaining_credits", "remaining"):
+                if isinstance(payload.get(k), (int, float)):
+                    remain = payload[k]
+
+        path = save_raw(out, out_dir,
+                        f"{base['date']}_search-notes_{values['keyword_slug']}")
+        n = 0
+        if isinstance(payload, dict):
+            data = payload.get("data") or {}
+            for k in ("items", "notes", "list"):
+                v = data.get(k)
+                if isinstance(v, list):
+                    n = len(v)
+                    break
+        print(f"  落盘 {path.relative_to(root)}  {n} 条")
+        done.append((w, n))
+
+    print("\n" + "=" * 56)
+    print(f"完成 {len(done)} / {len(words)} 个词")
+    if remain is not None:
+        print(f"灵造余额  剩 {remain} 积分")
+    if failed:
+        print("失败：")
+        for w, why in failed:
+            print(f"  - {w}（{why}）")
+    if not done:
+        return 1
+
+    if args.no_clean:
+        print("\n（--no-clean：跳过合成表）")
+        return 0
+
+    runner = root / "03_加工" / "01_lingzao" / "run.py"
+    if not runner.is_file():
+        print("\n（加工层不在，跳过合成表）")
+        return 0
+
+    print(f"\n合成一张表 → 03_加工/01_lingzao/run.py search {rel}")
+    print("-" * 56)
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(runner), "search", str(out_dir)],
+            capture_output=True, timeout=900, cwd=str(root),
+        )
+    except subprocess.TimeoutExpired:
+        print("出表超时（>900s）。原始数据已经落盘，稍后可单独重跑。")
+        return 0
+
+    print(proc.stdout.decode("utf-8", "replace").strip() or "（没有输出）")
+    if proc.returncode != 0:
+        print(f"⚠ 出表返回非 0（rc={proc.returncode}）—— 原始数据没丢，问题在加工那步。")
+    return 0
+
+
 # ---------------------------------------------------------------- 动作定义
 
 ACTIONS = {
@@ -745,6 +921,17 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("doctor", help="自检：CLI 在不在、连不连得通、配置填对没有")
 
+    sb = sub.add_parser("search-batch", help="一批关键词逐个搜，先报总价再动手")
+    sb.add_argument("--keywords", default="", help="多个词，逗号 / 顿号 / 换行分隔")
+    sb.add_argument("--file", default="", help="词表文件，一行一个词")
+    sb.add_argument("--sort", default="", help="同 search")
+    sb.add_argument("--note-type", default="", help="同 search（不限 / 视频笔记 / 图文笔记）")
+    sb.add_argument("--time-filter", default="", help="同 search（不限 / 一天内 / 一周内 / 半年内）")
+    sb.add_argument("--max", type=int, default=0,
+                    help=f"最多搜几个词，默认 {BATCH_DEFAULT_CAP}")
+    sb.add_argument("--go", action="store_true", help="真的跑（会花钱）")
+    sb.add_argument("--no-clean", action="store_true", help="抓完不合成表")
+
     for aname, spec in ACTIONS.items():
         sp = sub.add_parser(aname, help=spec.get("label", aname))
         for arg, meta in (spec.get("args") or {}).items():
@@ -761,6 +948,9 @@ def main():
 
     if args.cmd == "doctor":
         return cmd_doctor(cfg, ACTIONS)
+
+    if args.cmd == "search-batch":
+        return cmd_search_batch(cfg, args)
 
     spec = ACTIONS[args.cmd]
     values = {"date": datetime.now().strftime("%Y-%m-%d")}

@@ -1,0 +1,31 @@
+{
+  "_说明": "把本地逐字稿回填到飞书「笔记」表。这里的 token 不是密钥 —— 它只是文档地址，没权限的人拿到也打不开。换一张表就改这三个值。",
+
+  "base_token": "KzEsbzPh7aj8HTsyzkfcFASwn1d",
+  "table_id": "tbl7q6Gx3fQZqnsU",
+
+  "_fields_说明": "字段名必须和飞书表里的列名一字不差。改表里的列名，这里跟着改。",
+  "fields": {
+    "note_id": "笔记ID",
+    "transcript": "逐字稿",
+    "source": "逐字稿来源",
+    "status": "逐字稿状态"
+  },
+
+  "_status_说明": "本地有稿写「有稿」，本地没稿写「无稿」。没稿时默认不碰单元格，免得把你手填的内容冲掉。",
+  "status": {
+    "has": "有稿",
+    "none": "无稿",
+    "fail": "失败"
+  },
+
+  "_source_map_说明": "本地数据里的 source 字段 → 飞书单选项。",
+  "source_map": {
+    "lingzao": "灵造",
+    "getnote": "得到大脑",
+    "local": "本地转写"
+  },
+
+  "_batch_说明": "飞书接口单批上限 200 条，超过会自动分批。",
+  "batch_size": 200
+}

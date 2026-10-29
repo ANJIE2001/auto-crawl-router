@@ -1,0 +1,237 @@
+{
+  "_这是什么": "JustOneAPI 采集源配置。真值（token）不在这里，存你本机注册表。",
+  "_怎么用": "动作表只声明「调哪个接口」，参数定义从 spec/public-api.json 读 —— 加接口只改这张表，不用改代码。",
+  "_加新动作": "在本文件的 endpoints 里加一行（key 用 平台.动作），path 从 spec 里挑一个没标 hidden 的。",
+  "base_url": "https://api.justoneapi.com",
+  "mcp_url": "https://mcp.justoneapi.com/mcp",
+  "_mcp_url说明": "查余额/消费走这个 MCP 接口，免费；采集走 base_url。",
+  "timeout": 120,
+  "_timeout说明": "官方建议 120 秒。别改小，有接口就是慢。",
+  "retry_on_301": 2,
+  "_retry_on_301说明": "301 = 上游采集失败，官方原话「SEND REQUEST AGAIN」，且不计费。实测抖音首次 301、重试即成功，所以自动重试这么多次。",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "_user_agent说明": "MCP 那个域名挂在 Cloudflare 后面，Python 默认 UA 会被 403 拦。采集接口不需要，但查余额需要。",
+  "auth": {
+    "env": "JUSTONEAPI_TOKEN",
+    "get_key_at": "https://dashboard.justoneapi.com/zh/dashboard",
+    "note": "token 走 URL 参数（GET）或 form body（POST），不走 header。日志里必须打码。"
+  },
+  "endpoints": {
+    "xhs.search_user": {
+      "label": "小红书 · 账号搜索",
+      "method": "GET",
+      "path": "/api/xiaohongshu/search-user/v2",
+      "cost": 0.15
+    },
+    "xhs.user_profile": {
+      "label": "小红书 · 博主资料",
+      "method": "GET",
+      "path": "/api/xiaohongshu/get-user/v3",
+      "cost": 0.15
+    },
+    "xhs.user_notes": {
+      "label": "小红书 · 博主笔记列表",
+      "method": "GET",
+      "path": "/api/xiaohongshu/get-user-note-list/v4",
+      "cost": 0.15
+    },
+    "xhs.search_note": {
+      "label": "小红书 · 笔记搜索",
+      "method": "GET",
+      "path": "/api/xiaohongshu/search-note/v4",
+      "cost": 0.2
+    },
+    "xhs.note_detail": {
+      "label": "小红书 · 笔记详情",
+      "method": "GET",
+      "path": "/api/xiaohongshu/get-note-detail/v6",
+      "cost": 0.15
+    },
+    "xhs.note_comment": {
+      "label": "小红书 · 笔记评论",
+      "method": "GET",
+      "path": "/api/xiaohongshu/get-note-comment/v2",
+      "cost": 0.15
+    },
+    "dy.search_user": {
+      "label": "抖音 · 账号搜索",
+      "method": "GET",
+      "path": "/api/douyin/search-user/v2",
+      "cost": 0.1
+    },
+    "dy.user_profile": {
+      "label": "抖音 · 博主资料",
+      "method": "GET",
+      "path": "/api/douyin/get-user-detail/v3",
+      "cost": 0.1
+    },
+    "dy.user_videos": {
+      "label": "抖音 · 博主视频列表",
+      "method": "GET",
+      "path": "/api/douyin/get-user-video-list/v1",
+      "cost": 0.1
+    },
+    "dy.search_video": {
+      "label": "抖音 · 视频搜索",
+      "method": "GET",
+      "path": "/api/douyin/search-video/v4",
+      "cost": 0.1
+    },
+    "dy.video_detail": {
+      "label": "抖音 · 视频详情",
+      "method": "GET",
+      "path": "/api/douyin/get-video-detail/v2",
+      "cost": 0.1
+    },
+    "dy.video_comment": {
+      "label": "抖音 · 视频评论",
+      "method": "GET",
+      "path": "/api/douyin/get-video-comment/v1",
+      "cost": 0.1
+    },
+    "sph.search_account": {
+      "label": "视频号 · 账号搜索",
+      "method": "POST",
+      "path": "/api/weixin-channels/search-account/v1",
+      "cost": 1.5
+    },
+    "sph.search_account_v3": {
+      "label": "视频号 · 账号搜索(v3 便宜但当前 301)",
+      "method": "POST",
+      "path": "/api/weixin-channels/search-account/v3",
+      "cost": 0.5
+    },
+    "sph.search_video": {
+      "label": "视频号 · 视频搜索",
+      "method": "POST",
+      "path": "/api/weixin-channels/search-video/v1",
+      "cost": 0.8
+    },
+    "sph.account_videos": {
+      "label": "视频号 · 账号视频列表",
+      "method": "POST",
+      "path": "/api/weixin-channels/get-account-videos/v1",
+      "cost": 0.5
+    },
+    "sph.video_basic": {
+      "label": "视频号 · 视频基本信息",
+      "method": "GET",
+      "path": "/api/weixin-channels/get-video-basic-info/v1",
+      "cost": 0.3
+    },
+    "sph.video_title": {
+      "label": "视频号 · 视频标题",
+      "method": "GET",
+      "path": "/api/weixin-channels/get-video-title/v1",
+      "cost": 0.15
+    },
+    "sph.video_download": {
+      "label": "视频号 · 视频下载地址",
+      "method": "GET",
+      "path": "/api/weixin-channels/get-video-download-url/v1",
+      "cost": 0.3
+    },
+    "gzh.search_account": {
+      "label": "公众号 · 账号搜索",
+      "method": "POST",
+      "path": "/api/weixin/search-account/v1",
+      "cost": 0.4
+    },
+    "gzh.history_articles": {
+      "label": "公众号 · 历史文章列表",
+      "method": "POST",
+      "path": "/api/weixin/get-account-history-articles/v1",
+      "cost": 0.2
+    },
+    "gzh.search_article": {
+      "label": "公众号 · 文章搜索",
+      "method": "POST",
+      "path": "/api/weixin/search-article/v1",
+      "cost": 0.8
+    },
+    "gzh.article_detail": {
+      "label": "公众号 · 文章详情",
+      "method": "GET",
+      "path": "/api/weixin/get-article-detail/v5",
+      "cost": 0.15
+    },
+    "gzh.article_metrics": {
+      "label": "公众号 · 文章指标",
+      "method": "GET",
+      "path": "/api/weixin/get-article-metrics/v1",
+      "cost": 0.15
+    }
+  },
+  "pricing": {
+    "/api/douyin/get-user-detail/v3": 0.1,
+    "/api/douyin/get-user-video-list/v1": 0.1,
+    "/api/douyin/get-video-comment/v1": 0.1,
+    "/api/douyin/get-video-detail/v2": 0.1,
+    "/api/douyin/get-video-sub-comment/v1": 0.1,
+    "/api/douyin/hot-search/v1": 0.2,
+    "/api/douyin/search-image/v1": 0.2,
+    "/api/douyin/search-user/v2": 0.1,
+    "/api/douyin/search-video/v4": 0.1,
+    "/api/douyin/share-url-transfer/v1": 0.1,
+    "/api/weixin-channels/convert-export-id/v1": 0.15,
+    "/api/weixin-channels/get-account-videos/v1": 0.5,
+    "/api/weixin-channels/get-bound-channel/v1": 1.0,
+    "/api/weixin-channels/get-video-basic-info/v1": 0.3,
+    "/api/weixin-channels/get-video-comment/v1": 0.15,
+    "/api/weixin-channels/get-video-download-url/v1": 0.3,
+    "/api/weixin-channels/get-video-metrics/v1": 0.15,
+    "/api/weixin-channels/get-video-share-url/v1": 0.2,
+    "/api/weixin-channels/get-video-sub-comment/v1": 0.15,
+    "/api/weixin-channels/get-video-title/v1": 0.15,
+    "/api/weixin-channels/search-account/v1": 1.5,
+    "/api/weixin-channels/search-account/v2": 1.0,
+    "/api/weixin-channels/search-account/v3": 0.5,
+    "/api/weixin-channels/search-video/v1": 0.8,
+    "/api/weixin-channels/search-video/v2": 1.5,
+    "/api/weixin/convert-article-link/v1": 0.1,
+    "/api/weixin/get-account-basic-info/v1": 1.0,
+    "/api/weixin/get-account-history-articles/v1": 0.2,
+    "/api/weixin/get-account-history-articles/v2": 0.4,
+    "/api/weixin/get-account-original-count/v1": 1.5,
+    "/api/weixin/get-account-principal-info/v1": 1.0,
+    "/api/weixin/get-article-comment/v1": 0.2,
+    "/api/weixin/get-article-detail/v1": 0.15,
+    "/api/weixin/get-article-detail/v2": 0.15,
+    "/api/weixin/get-article-detail/v3": 0.2,
+    "/api/weixin/get-article-detail/v4": 0.15,
+    "/api/weixin/get-article-detail/v5": 0.15,
+    "/api/weixin/get-article-metrics/v1": 0.15,
+    "/api/weixin/get-article-metrics/v2": 0.2,
+    "/api/weixin/get-article-sub-comment/v1": 0.2,
+    "/api/weixin/search-account/v1": 0.4,
+    "/api/weixin/search-account/v2": 1.5,
+    "/api/weixin/search-article/v1": 0.8,
+    "/api/weixin/search-article/v2": 0.8,
+    "/api/weixin/search-miniprogram/v1": 0.8,
+    "/api/weixin/search-suggestions/v1": 0.8,
+    "/api/weixin/search-wechat-index/v1": 0.8,
+    "/api/xiaohongshu/ask-dots": 0.5,
+    "/api/xiaohongshu/get-creator-hot-inspiration-feed/v1": 0.15,
+    "/api/xiaohongshu/get-note-comment/v2": 0.15,
+    "/api/xiaohongshu/get-note-detail/v1": 0.15,
+    "/api/xiaohongshu/get-note-detail/v6": 0.15,
+    "/api/xiaohongshu/get-note-sub-comment/v2": 0.15,
+    "/api/xiaohongshu/get-topic-note-list/v1": 0.15,
+    "/api/xiaohongshu/get-user-faved-note-list/v1": 0.15,
+    "/api/xiaohongshu/get-user-note-list/v4": 0.15,
+    "/api/xiaohongshu/get-user/v3": 0.15,
+    "/api/xiaohongshu/hot-search/v1": 0.15,
+    "/api/xiaohongshu/search-note/v2": 0.15,
+    "/api/xiaohongshu/search-note/v4": 0.2,
+    "/api/xiaohongshu/search-recommend/v1": 0.15,
+    "/api/xiaohongshu/search-user/v2": 0.15,
+    "/api/xiaohongshu/share-url-transfer/v1": 0.15
+  },
+  "pricing_meta": {
+    "source": "dashboard 导出 justoneapi-pricing-20261029-182138.xlsx",
+    "exported_at": "2026-10-29 18:21:38 UTC+8",
+    "unit": "CNY / 次请求",
+    "billing_rule": "只有业务码 code=0 的成功请求计费；100/301/302/303/400/500/600/601/602 都不计费",
+    "scope": "只收了小红书 / 抖音 / 微信视频号 / 微信公众号 四个平台"
+  }
+}

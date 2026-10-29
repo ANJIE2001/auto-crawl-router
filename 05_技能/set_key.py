@@ -6,6 +6,7 @@
     python 05_技能/set_key.py                    # 看当前 key 从哪读到（推荐先跑这个）
     python 05_技能/set_key.py getnote --client-id cli_xxx --api-key gk_live_xxx
     python 05_技能/set_key.py lingzao --api-key lgz_xxx
+    python 05_技能/set_key.py justoneapi --api-key xxx
     python 05_技能/set_key.py getnote --clear    # 清掉
 
 **为什么不像以前那样写在项目文件里**：项目是要打包发人的，key 跟着走就泄露了。
@@ -71,6 +72,12 @@ SOURCES = {
             ("base_url", "LINGZAO_BASE_URL", "base_url"),
         ],
     },
+    "justoneapi": {
+        "label": "JustOneAPI",
+        "fields": [
+            ("api_key", "JUSTONEAPI_TOKEN", "api_key"),
+        ],
+    },
 }
 
 
@@ -80,6 +87,10 @@ def mask(v: str) -> str:
     v = re.sub(r"(gk_live_)[A-Za-z0-9.]+", r"\1<hidden>", v)
     v = re.sub(r"(lgz_)[A-Za-z0-9]{6,}", r"\1<hidden>", v)
     v = re.sub(r"(cli_)[a-f0-9]{8,}", r"\1<hidden>", v)
+    # JustOneAPI 的 token 没有固定前缀（形如 v10AbCdEfGhIjKl），
+    # 前面几条规则都命中不了 —— 兜底把长串整段遮掉，别在终端明晃晃打出来
+    if "<hidden>" not in v and len(v) >= 8:
+        v = v[:3] + "<hidden>" + v[-2:]
     return v
 
 
